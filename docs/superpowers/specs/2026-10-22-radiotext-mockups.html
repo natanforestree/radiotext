@@ -1,0 +1,152 @@
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen&display=swap" rel="stylesheet">
+<style>
+  .phone { width: 260px; height: 540px; margin: 0 auto; border: 7px solid #0d0d0d; border-radius: 26px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+  .card-image.tall { aspect-ratio: auto; padding: 18px 0; }
+  .px { image-rendering: pixelated; shape-rendering: crispEdges; }
+
+  /* A: player skin */
+  .wa { background: #23252b; font-family: 'Silkscreen', monospace; color: #b9bcc4; padding: 10px; gap: 10px; }
+  .wa-title { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 1px; color: #8a8f99; padding: 2px 4px; background: repeating-linear-gradient(0deg, #2e3138 0 2px, #23252b 2px 4px); }
+  .wa-lcd { background: #081208; border: 2px solid #000; box-shadow: inset 0 0 0 1px #1d3a1d; padding: 8px 10px; font-family: 'VT323', monospace; color: #7dff6a; }
+  .wa-row { display: flex; justify-content: space-between; font-size: 15px; color: #49a83d; }
+  .wa-name { font-size: 38px; line-height: 1; margin: 2px 0; }
+  .wa-tags { font-size: 15px; color: #5fd14f; }
+  .wa-bars { display: flex; gap: 3px; align-items: flex-end; height: 26px; margin-top: 6px; }
+  .wa-bars i { width: 7px; background: #7dff6a; display: block; }
+  .wa-ctrls { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 6px; }
+  .wa button, .wa .btn { font-family: 'Silkscreen', monospace; background: #3a3e47; color: #e3e5ea; border: 2px solid; border-color: #5a5f6b #15171b #15171b #5a5f6b; padding: 12px 0; font-size: 16px; text-align: center; }
+  .wa-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .wa-presets .btn { font-size: 9px; padding: 8px 2px; line-height: 1.5; }
+  .wa-presets .btn b { display: block; font-size: 16px; }
+  .wa-presets .on { background: #1c3a1c; color: #7dff6a; border-color: #15171b #3d6b3d #3d6b3d #15171b; }
+  .wa-list { background: #0b0c0e; border: 2px solid #000; font-family: 'VT323', monospace; font-size: 17px; padding: 6px 8px; color: #8fb3ff; flex: 1; }
+  .wa-list div { display: flex; justify-content: space-between; }
+  .wa-list .cur { color: #fff; }
+  .wa-list .dim { color: #5b6170; }
+
+  /* B: teletext */
+  .tt { background: #000; font-family: 'VT323', monospace; color: #fff; font-size: 19px; }
+  .tt-hdr { display: flex; justify-content: space-between; padding: 4px 8px; color: #fff; }
+  .tt-hdr .y { color: #ff0; }
+  .tt-band { background: #0000d0; color: #ff0; font-size: 44px; line-height: 1; padding: 6px 8px 2px; letter-spacing: 2px; }
+  .tt-mosaic { color: #0ff; letter-spacing: -1px; padding: 0 8px; line-height: 1; font-size: 16px; }
+  .tt-now { padding: 8px 8px 0; font-size: 30px; line-height: 1.05; }
+  .tt-now .g { background: #0c0; color: #000; padding: 0 4px; font-size: 20px; vertical-align: middle; }
+  .tt-sub { padding: 0 8px 8px; color: #0ff; }
+  .tt-list { padding: 4px 8px; flex: 1; }
+  .tt-list div { display: flex; justify-content: space-between; }
+  .tt-list .n { color: #ff0; margin-right: 8px; }
+  .tt-list .t { color: #f0f; }
+  .tt-list .cur { background: #fff; color: #000; }
+  .tt-list .cur .n, .tt-list .cur .t { color: #000; }
+  .tt-fast { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .tt-fast span { padding: 14px 6px; text-align: center; font-size: 22px; color: #000; }
+
+  /* C: early web */
+  .ew { background: #fbf8ef; color: #111; font-family: 'Times New Roman', Times, serif; padding: 14px 16px; font-size: 15px; }
+  .ew h1 { font-size: 30px; margin: 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+  .ew .small { font-family: Verdana, sans-serif; font-size: 10px; color: #555; margin: 2px 0 0; }
+  .ew hr { border: 0; border-top: 1px solid #999; border-bottom: 1px solid #fff; margin: 10px 0; }
+  .ew a { color: #0000ee; text-decoration: underline; }
+  .ew a.v { color: #551a8b; }
+  .ew p { margin: 0 0 8px; }
+  .ew-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 6px 0 2px; }
+  .ew-btns span { font-family: Verdana, sans-serif; font-size: 13px; background: #d4d0c8; border: 2px solid; border-color: #fff #404040 #404040 #fff; text-align: center; padding: 11px 0; }
+  .ew ol { margin: 4px 0 8px; padding-left: 22px; }
+  .ew li { margin: 3px 0; }
+  .ew .foot { font-family: Verdana, sans-serif; font-size: 9px; color: #777; margin-top: auto; }
+</style>
+
+<h2>Which direction feels right for the radio?</h2>
+<p class="subtitle">Phone-sized, since the car is where you'll use it. All three have the same parts: big prev / play / next buttons, your 3 saved stations, and a way to browse. Click one, or tell me what you'd take from each.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="player" onclick="toggleSelect(this)">
+    <div class="card-image tall">
+      <div class="phone wa">
+        <div class="wa-title"><span>RADIO</span><span>_ &times;</span></div>
+        <div class="wa-lcd">
+          <div class="wa-row"><span>PRESET 1</span><span>128K</span></div>
+          <div class="wa-name">12XU</div>
+          <div class="wa-tags">NOISE ROCK &middot; POST-PUNK &middot; DE</div>
+          <div class="wa-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:55%"></i><i style="height:95%"></i><i style="height:60%"></i><i style="height:35%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:25%"></i><i style="height:65%"></i><i style="height:45%"></i><i style="height:30%"></i><i style="height:70%"></i><i style="height:40%"></i><i style="height:20%"></i><i style="height:55%"></i><i style="height:35%"></i><i style="height:15%"></i></div>
+        </div>
+        <div class="wa-ctrls"><span class="btn">&#9664;&#9664;</span><span class="btn">&#9632;</span><span class="btn">&#9654;&#9654;</span></div>
+        <div class="wa-presets">
+          <span class="btn on"><b>1</b>12XU</span>
+          <span class="btn"><b>2</b>METAL DET</span>
+          <span class="btn"><b>3</b>RADCAP</span>
+        </div>
+        <div class="wa-list">
+          <div class="cur"><span>1. 12XU</span><span>noise</span></div>
+          <div><span>2. Metal Detector</span><span>sludge</span></div>
+          <div><span>3. RadCap Noise Rock</span><span>noise</span></div>
+          <div class="dim" style="margin-top:8px"><span>+ browse stations...</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A &middot; Player skin</h3>
+      <p>An early-2000s music player: green LCD readout and chunky beveled buttons. Your saved stations are car-stereo presets 1, 2, 3.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="teletext" onclick="toggleSelect(this)">
+    <div class="card-image tall">
+      <div class="phone tt">
+        <div class="tt-hdr"><span>P101</span><span class="y">RADIOTEXT</span><span>07:41</span></div>
+        <div class="tt-band">RADIO</div>
+        <div class="tt-mosaic">&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;&#9608;&#9600;&#9604;</div>
+        <div class="tt-now"><span class="g">ON AIR</span> 12XU</div>
+        <div class="tt-sub">NOISE ROCK / POST-PUNK &nbsp;DE</div>
+        <div class="tt-list">
+          <div class="cur"><span><span class="n">101</span>12XU</span><span class="t">NOISE</span></div>
+          <div><span><span class="n">102</span>METAL DETECTOR</span><span class="t">SLUDGE</span></div>
+          <div><span><span class="n">103</span>RADCAP NOISE</span><span class="t">NOISE</span></div>
+          <div style="margin-top:10px"><span><span class="n">200</span>BROWSE GENRES</span><span class="t">&raquo;</span></div>
+          <div><span><span class="n">300</span>ALL STATIONS</span><span class="t">&raquo;</span></div>
+        </div>
+        <div class="tt-fast">
+          <span style="background:#f00">&#9664; PREV</span><span style="background:#0c0">&#9632; STOP</span>
+          <span style="background:#ff0">NEXT &#9654;</span><span style="background:#0ff">BROWSE</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B &middot; Teletext</h3>
+      <p>The TV text pages from the '80s and '90s: blocky type and flat bold colors. Stations are page numbers, and the four colored keys at the bottom are big thumb buttons.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="early-web" onclick="toggleSelect(this)">
+    <div class="card-image tall">
+      <div class="phone ew">
+        <h1>
+          <svg class="px" width="26" height="22" viewBox="0 0 13 11"><rect x="0" y="3" width="3" height="5" fill="#111"/><rect x="3" y="2" width="1" height="7" fill="#111"/><rect x="4" y="1" width="1" height="9" fill="#111"/><rect x="5" y="0" width="1" height="11" fill="#111"/><rect x="8" y="3" width="1" height="5" fill="#0000ee"/><rect x="10" y="1" width="1" height="9" fill="#0000ee"/><rect x="12" y="0" width="1" height="11" fill="#0000ee"/></svg>
+          radio
+        </h1>
+        <p class="small">a little radio for the drive to work</p>
+        <hr>
+        <p><b>Now tuned to:</b><br><a>12XU</a> &mdash; noise rock, post-punk, from Germany</p>
+        <div class="ew-btns"><span>&laquo; prev</span><span>stop</span><span>next &raquo;</span></div>
+        <hr>
+        <b>my stations</b>
+        <ol>
+          <li><a class="v">12XU</a></li>
+          <li><a>SomaFM Metal Detector</a></li>
+          <li><a>RadCap Noise Rock</a></li>
+        </ol>
+        <b>browse by genre</b>
+        <p><a>noise rock</a> &middot; <a>sludge</a> &middot; <a>post-punk</a> &middot; <a>freeform</a> &middot; <a>college radio</a> &middot; <a>more...</a></p>
+        <hr>
+        <p class="foot">last updated oct 22 2026</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C &middot; Early web page</h3>
+      <p>A '90s personal homepage done with taste: serif text, blue links, gray Windows 95 buttons, horizontal rules. Quiet and fast.</p>
+    </div>
+  </div>
+
+</div>
