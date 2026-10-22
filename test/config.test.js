@@ -9,4 +9,4 @@ test('genre pages run 210..228 with labels and tags', () => {
   assert.deepEqual(GENRES.map((g) => g.page), Array.from({ length: 19 }, (_, i) => 210 + i));
   for (const g of GENRES) { assert.ok(g.label && g.tags.length); }
 });
-test('relay base is null until Task 2', () => { assert.equal(RELAY_BASE, null); });
+test('relay base points at the deployed relay', () => { assert.equal(RELAY_BASE, 'https://radiotext-relay.nathanforestlee.workers.dev'); });

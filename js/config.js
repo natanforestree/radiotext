@@ -6,8 +6,8 @@
  * @typedef {{page: number, label: string, tags: string[], exclude?: string[]}} Genre
  */
 
-/** @type {string|null} Cloudflare Worker relay base URL; set in Task 2. */
-export const RELAY_BASE = null;
+/** @type {string|null} Cloudflare Worker relay (worker/) for http-only stations: GET {RELAY_BASE}/s/{uuid}. */
+export const RELAY_BASE = 'https://radiotext-relay.nathanforestlee.workers.dev';
 export const API_FALLBACK = 'https://de1.api.radio-browser.info';
 export const SERVERS_URL = 'https://all.api.radio-browser.info/json/servers';
 

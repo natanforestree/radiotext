@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relay Listen Test</title>
+  <style>
+    :root { --black: #000000; --white: #ffffff; --cyan: #00ffff; --yellow: #ffff00; }
+    body { margin: 0; padding: 16px; background: var(--black); color: var(--white); font: 16px/1.4 monospace; }
+    h1 { color: var(--yellow); font-size: 20px; }
+    #src { word-break: break-all; }
+    button { min-height: 44px; padding: 0 16px; border: 0; background: var(--cyan); color: var(--black); font: inherit; }
+    audio { display: block; width: 100%; margin: 16px 0; }
+    #log { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>RELAY LISTEN TEST</h1>
+  <p>src: <span id="src"></span></p>
+  <button id="play" type="button">Play</button>
+  <audio id="audio" controls preload="none"></audio>
+  <pre id="log"></pre>
+  <script>
+    // Local test page for Task 2: plays ?src= in an <audio> and logs media events.
+    const audio = document.getElementById('audio');
+    const log = document.getElementById('log');
+    const src = new URLSearchParams(location.search).get('src') || '';
+    document.getElementById('src').textContent = src || '(none: add ?src=)';
+    const t0 = Date.now();
+    window.mediaEvents = [];
+    const note = (msg) => {
+      const entry = `${((Date.now() - t0) / 1000).toFixed(1)}s ${msg}`;
+      window.mediaEvents.push(entry);
+      log.textContent += entry + '\n';
+    };
+    for (const type of ['play', 'playing', 'waiting', 'stalled', 'pause', 'ended', 'error']) {
+      audio.addEventListener(type, () => note(type + (type === 'error' && audio.error ? ` code=${audio.error.code}` : '')));
+    }
+    document.getElementById('play').addEventListener('click', () => {
+      if (!src) return note('no src');
+      if (!audio.src) audio.src = src;
+      audio.play().then(() => note('play() resolved'), (err) => note(`play() rejected: ${err.name}`));
+    });
+  </script>
+</body>
+</html>
