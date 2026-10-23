@@ -1,0 +1,331 @@
+/* Radiotext: the Teletext look.
+   Only the 8 Teletext colours, flat fills, square corners. No CRT effects, no motion. */
+
+@font-face {
+  font-family: Bedstead;
+  src: url("fonts/bedstead.otf") format("opentype");
+  font-display: swap;
+}
+
+:root {
+  --black: #000000;
+  --red: #ff0000;
+  --green: #00ff00;
+  --yellow: #ffff00;
+  --blue: #0000ff;
+  --magenta: #ff00ff;
+  --cyan: #00ffff;
+  --white: #ffffff;
+
+  --cols: 28;   /* character cells across the screen */
+  --pad: 12px;  /* side margin */
+  --tap: 44px;  /* smallest tappable row */
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; background: var(--black); }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  color: var(--white);
+  font-family: Bedstead, monospace;
+  font-weight: normal;
+  font-synthesis: none;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#screen {
+  container-type: inline-size;
+  max-width: 480px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bedstead's cell is 0.6em wide and 1em tall. Size the type so --cols cells fill the screen. */
+#hdr, #page, #fastext {
+  font-size: calc((min(100vw, 480px) - 2 * var(--pad)) / (var(--cols) * 0.6));
+  font-size: calc((100cqi - 2 * var(--pad)) / (var(--cols) * 0.6));
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  text-align: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button:focus-visible, input:focus-visible {
+  outline: 3px solid var(--magenta);
+  outline-offset: -3px;
+}
+
+ul { list-style: none; margin: 0; padding: 0; }
+p, h1 { margin: 0; font: inherit; }
+
+/* Double height: Teletext stretches the glyphs to two rows; the bottom margin keeps the second row. */
+.dh {
+  display: inline-block;
+  vertical-align: top;
+  line-height: 1;
+  transform: scaleY(2);
+  transform-origin: top;
+  margin-bottom: 1em;
+}
+
+/* ---- Header row: P100   RADIOTEXT   07:41 ---- */
+
+#hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top) + 0.5em) var(--pad) 0.5em;
+  white-space: nowrap;
+}
+#hdr .nm { color: var(--yellow); }
+
+#page { flex: 1 0 auto; padding-bottom: 0.6em; }
+
+/* ---- Title band and mosaic stripe ---- */
+
+.band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+  min-height: 2.8em;
+  padding: 0.4em var(--pad);
+  background: var(--blue);
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.band h1 { text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.mast svg { display: block; height: 2.4em; width: auto; }
+.stripe { padding-top: 0.3em; }
+.stripe svg { display: block; width: 100%; height: auto; }
+
+/* Mosaic fills arrive as fill="var(--x)". Repeat them in CSS for engines that skip var() in SVG attributes. */
+svg [fill="var(--black)"] { fill: var(--black); }
+svg [fill="var(--red)"] { fill: var(--red); }
+svg [fill="var(--green)"] { fill: var(--green); }
+svg [fill="var(--yellow)"] { fill: var(--yellow); }
+svg [fill="var(--blue)"] { fill: var(--blue); }
+svg [fill="var(--magenta)"] { fill: var(--magenta); }
+svg [fill="var(--cyan)"] { fill: var(--cyan); }
+svg [fill="var(--white)"] { fill: var(--white); }
+
+/* ---- ON AIR block ---- */
+
+.onair { padding: 0.7em var(--pad) 0.5em; }
+
+.lamp {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  color: var(--black);
+  white-space: nowrap;
+}
+.lamp.live { background: var(--green); }
+.lamp.busy { background: var(--yellow); }
+.lamp.bad { background: var(--red); }
+.lamp.off { background: var(--white); }
+
+.air-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: max(var(--tap), 2.4em);
+  margin-top: 0.5em;
+}
+.air-name { flex: 1; min-width: 0; text-transform: uppercase; }
+.air-name .dh { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.air-meta, .air-song {
+  min-height: 1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.air-meta { margin-top: 0.3em; color: var(--cyan); }
+.air-meta .cc { color: var(--white); }
+.air-song { margin-top: 0.5em; color: var(--white); }
+.air-song .note { color: var(--yellow); }
+
+/* ---- Rows: index rows (101 NAME ...... TAG) and station rows ---- */
+
+.idx { padding: 0.3em 0; }
+.idx + .idx { padding-top: 0; }
+.links { margin-top: 0.5em; }
+
+.row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: max(var(--tap), 2.2em);
+  padding: 0 var(--pad);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.row .n { flex: none; margin-right: 0.6em; color: var(--yellow); }
+.row .nm { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* .fit shows one line only: a piece that doesn't fit whole wraps onto the hidden second line.
+   The name always shows; the leaders and tag (or a second tag) only when they fit. */
+.fit { display: flex; flex-wrap: wrap; height: 1em; overflow: hidden; }
+.row .fit { flex: 1; min-width: 0; }
+.row .end { flex: 1 0 auto; display: flex; }
+.row .lead { flex: 1 0 1.2em; width: 1.2em; margin: 0 0.6em; overflow: hidden; color: var(--blue); }
+.row .lead::before { content: "........................................................"; }
+.row .t { flex: none; color: var(--magenta); }
+.links .t, .genres .t { color: var(--cyan); }
+.genres li:nth-child(even) .nm { color: var(--cyan); }
+
+.row:active { background: var(--blue); }
+@media (hover: hover) { .row:hover { background: var(--blue); } }
+
+/* The station playing now: inverse video. */
+.row.cur, .row.cur:hover, .row.cur:active { background: var(--white); color: var(--black); }
+#page .row.cur, #page .row.cur * { color: var(--black); }
+
+.stations { padding: 0.3em 0; }
+.st { display: flex; align-items: stretch; }
+.st:has(> .row.cur) { background: var(--white); }
+.st .row {
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.3em;
+  padding-top: 0.45em;
+  padding-bottom: 0.45em;
+  padding-right: 0;
+}
+.st .meta { display: flex; gap: 0.6em; color: var(--cyan); }
+.st .meta .tg { flex: 1; min-width: 0; column-gap: 0.6em; }
+.st .meta .cc { flex: none; margin-left: auto; color: var(--white); }
+
+/* ---- Save star: pixel art drawn over the ★/☆ text, which Bedstead lacks ---- */
+
+.star {
+  position: relative;
+  flex: none;
+  width: max(48px, 2.4em);
+  min-height: max(var(--tap), 2.2em);
+  display: grid;
+  place-items: center;
+  color: var(--white);
+}
+.star.on { color: var(--yellow); }
+.row.cur + .star { background: var(--white); color: var(--black); }
+.star:active { background: var(--blue); }
+
+@supports (mask-size: contain) or (-webkit-mask-size: contain) {
+  .star, .row.cur + .star { color: transparent; }
+  .star::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.1em;
+    height: 1.1em;
+    background: var(--white);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5 0h1v2h-1zM4 2h1v2h-1zM6 2h1v2h-1zM0 4h4v1h-4zM7 4h4v1h-4zM1 5h1v1h-1zM9 5h1v1h-1zM2 6h1v1h-1zM8 6h1v1h-1zM3 7h1v1h-1zM5 7h1v1h-1zM7 7h1v1h-1zM2 8h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM2 9h2v1h-2zM7 9h2v1h-2zM1 10h2v1h-2zM8 10h2v1h-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5 0h1v2h-1zM4 2h1v2h-1zM6 2h1v2h-1zM0 4h4v1h-4zM7 4h4v1h-4zM1 5h1v1h-1zM9 5h1v1h-1zM2 6h1v1h-1zM8 6h1v1h-1zM3 7h1v1h-1zM5 7h1v1h-1zM7 7h1v1h-1zM2 8h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM2 9h2v1h-2zM7 9h2v1h-2zM1 10h2v1h-2zM8 10h2v1h-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  .star.on::before {
+    background: var(--yellow);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5 0h1v2h-1zM4 2h3v2h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM2 8h3v1h-3zM6 8h3v1h-3zM2 9h2v1h-2zM7 9h2v1h-2zM1 10h2v1h-2zM8 10h2v1h-2z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5 0h1v2h-1zM4 2h3v2h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM2 8h3v1h-3zM6 8h3v1h-3zM2 9h2v1h-2zM7 9h2v1h-2zM1 10h2v1h-2zM8 10h2v1h-2z'/%3E%3C/svg%3E");
+  }
+  .row.cur + .star::before { background: var(--black); }
+}
+
+/* ---- Subpages, messages, search ---- */
+
+.sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3em var(--pad);
+}
+.subk {
+  min-width: max(64px, 3.6em);
+  min-height: max(var(--tap), 2.2em);
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: var(--white);
+}
+.subk:active { background: var(--white); color: var(--blue); }
+.subk:disabled { visibility: hidden; }
+.subn { color: var(--white); }
+
+.msg { padding: 0.9em var(--pad); line-height: 1.4; }
+.hint { color: var(--white); }
+.hint .tg { color: var(--cyan); }
+
+.find { display: flex; gap: 0.6em; padding: 0.8em var(--pad) 0.4em; }
+.find input {
+  flex: 1;
+  min-width: 0;
+  height: max(48px, 2.2em);
+  padding: 0 0.6em;
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  font-size: max(16px, 1em); /* under 16px, iOS zooms in on focus */
+  text-transform: uppercase;
+  background: var(--white);
+  color: var(--black);
+}
+.find input::placeholder { color: var(--blue); opacity: 1; }
+.find input::-webkit-search-decoration,
+.find input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.find button { flex: none; padding: 0 0.6em; background: var(--blue); color: var(--yellow); }
+.find button:active { background: var(--yellow); color: var(--blue); }
+
+/* ---- Fastext keys: 2x2, pinned to the bottom ---- */
+
+#fastext {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+  background: var(--black);
+}
+.fk {
+  height: clamp(64px, 3.2em, 84px);
+  display: grid;
+  place-items: center;
+  color: var(--black);
+  white-space: nowrap;
+}
+.fk.red { background: var(--red); }
+.fk.green { background: var(--green); }
+.fk.yellow { background: var(--yellow); }
+.fk.cyan { background: var(--cyan); }
+.fk:active { background: var(--black); }
+.fk.red:active { color: var(--red); }
+.fk.green:active { color: var(--green); }
+.fk.yellow:active { color: var(--yellow); }
+.fk.cyan:active { color: var(--cyan); }
