@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation } from '../src/http1.js';
+import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType } from '../src/http1.js';
 
 const enc = (s) => new TextEncoder().encode(s);
 
@@ -29,4 +29,14 @@ test('parseHead reads HTTP and ICY status lines', () => {
 test('resolveLocation handles relative and absolute redirects', () => {
   assert.equal(resolveLocation('http://a:8000/x', '/y'), 'http://a:8000/y');
   assert.equal(resolveLocation('http://a/x', 'https://b/z'), 'https://b/z');
+});
+test('safeAudioType keeps audio types and maps everything else to audio/mpeg', () => {
+  assert.equal(safeAudioType('audio/aacp'), 'audio/aacp');
+  assert.equal(safeAudioType('application/ogg'), 'application/ogg');
+  assert.equal(safeAudioType('audio/mpeg; charset=x'), 'audio/mpeg');
+  assert.equal(safeAudioType(' Audio/OGG;codecs=opus'), 'audio/ogg');
+  for (const bad of ['text/html', 'image/svg+xml', 'application/xml', 'text/xml', 'text/plain', 'application/octet-stream',
+    '', undefined, null, 'audio/', 'audio/mpeg\r\nX-Evil: 1', 'audio/mp\u00e9g', 'text/html; x=audio/mpeg']) {
+    assert.equal(safeAudioType(bad), 'audio/mpeg', `for ${JSON.stringify(bad)}`);
+  }
 });

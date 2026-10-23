@@ -3,7 +3,7 @@
 // address always comes from Radio Browser's record for that uuid.
 
 import { connect } from 'cloudflare:sockets';
-import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation } from './http1.js';
+import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType } from './http1.js';
 
 const API = 'https://de1.api.radio-browser.info';
 const UA = 'Radiotext-relay/1.0';
@@ -84,7 +84,10 @@ async function readHead(socket) {
   }
 }
 
-/** Opens the stream at `href`, following up to 3 redirects. Resolves to {body, contentType}. */
+/**
+ * Opens the stream at `href`, following up to 3 redirects. Resolves to {body, contentType};
+ * contentType is upstream's raw value, so the caller must pass it through safeAudioType.
+ */
 async function openStream(href, hops = 0) {
   const url = new URL(href);
   if (url.protocol === 'https:') {
@@ -113,11 +116,10 @@ async function openStream(href, hops = 0) {
     if (hops >= MAX_REDIRECTS) throw new UpstreamError('too many redirects');
     return openStream(resolveLocation(url.href, head.headers.location), hops + 1);
   }
-  const contentType = head.headers['content-type'] || null;
-  if (head.status !== 200 || /html/i.test(contentType || '')) {
+  if (head.status !== 200) {
     reader.releaseLock();
     socket.close().catch(() => {});
-    throw new UpstreamError(`upstream status ${head.status} ${contentType || ''}`.trim());
+    throw new UpstreamError(`upstream status ${head.status}`);
   }
 
   // From here on, bytes go socket -> response without JS touching each chunk.
@@ -130,7 +132,7 @@ async function openStream(href, hops = 0) {
     w.releaseLock();
     await socket.readable.pipeTo(writable);
   })().catch(() => socket.close().catch(() => {})); // the listener left, or upstream broke
-  return { body: readable, contentType };
+  return { body: readable, contentType: head.headers['content-type'] };
 }
 
 export default {
@@ -149,10 +151,12 @@ export default {
       if (!streamUrl.startsWith('http://')) return plain(400, 'not an http-only station');
 
       const { body, contentType } = await openStream(streamUrl);
+      // Whatever upstream (or a redirect it chose) claims, only audio is served.
       return new Response(body, {
         status: 200,
         headers: {
-          'Content-Type': contentType || 'audio/mpeg',
+          'Content-Type': safeAudioType(contentType),
+          'Content-Security-Policy': "sandbox; default-src 'none'",
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
           ...CORS,

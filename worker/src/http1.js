@@ -57,6 +57,20 @@ export function parseHead(text) {
   return { status: m ? Number(m[1]) : 0, headers };
 }
 
+const AUDIO_TYPE = /^audio\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+
+/**
+ * The Content-Type the relay may serve: upstream's bare media type if it is
+ * audio/* or application/ogg, else audio/mpeg. Parameters are dropped, so
+ * nothing script-capable, non-ASCII or multi-line ever reaches a response.
+ * @param {unknown} type upstream Content-Type
+ * @returns {string}
+ */
+export function safeAudioType(type) {
+  const essence = typeof type === 'string' ? type.split(';')[0].trim().toLowerCase() : '';
+  return essence === 'application/ogg' || AUDIO_TYPE.test(essence) ? essence : 'audio/mpeg';
+}
+
 /** @param {string} base @param {string} location @returns {string} the absolute redirect target. */
 export function resolveLocation(base, location) {
   return new URL(location, base).href;
