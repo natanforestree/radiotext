@@ -16,11 +16,13 @@ Live at https://natanforestree.github.io/radiotext/
 
 They live on the device only (local storage), not on any server. On iPhone the home-screen app and Safari keep separate storage, so stations saved in one will not show in the other. Pick one and stick to it.
 
+On iPhone, Safari may clear a site's saved data after about 7 days without a visit; the home-screen app isn't affected.
+
 ## Why the relay
 
 Browsers block `http://` audio on an `https://` page, and some stations only offer http. A free Cloudflare Worker, https://radiotext-relay.nathanforestlee.workers.dev, covers that gap.
 
-- It only relays Radio Browser stations, looked up by uuid, and only when their stream is `http://`. It is not an open proxy.
+- It only relays Radio Browser stations, looked up by uuid, and only when their stream is `http://` and passed Radio Browser's last check.
 - It serves audio content types only.
 - https first: a station with an https stream, or whose http address also works over https, plays directly. Bare-IP http streams (RadCap, for example) go straight to the relay.
 
@@ -39,7 +41,7 @@ python3 -m http.server         # serve it locally on :8000
 python3 tools/make_icons.py    # redraw the icons from the mast in js/mosaic.js
 
 cd worker && npm install && npm test && npx wrangler deploy   # relay tests and deploy
-node worker/scripts/soak.mjs <url> <seconds>                  # relay soak test
+node scripts/soak.mjs <url> <seconds>                         # relay soak test (from worker/)
 ```
 
 ## Credits
