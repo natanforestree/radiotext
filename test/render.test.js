@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderHome, renderList, renderFastext, renderSearch } from '../js/render.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderFastext, renderSearch } from '../js/render.js';
+import { GENRES } from '../js/config.js';
 import { PRESETS } from '../js/config.js';
 
 test('escapeHtml escapes markup characters', () => {
@@ -48,4 +49,41 @@ test('fastext labels follow page and play state', () => {
   const other = renderFastext({ page: 212, playing: true });
   assert.ok(other.includes('■ STOP') && other.includes('HOME'));
   for (const k of ['prev', 'play', 'next', 'browse']) assert.ok(home.includes(`data-key="${k}"`));
+});
+
+// Genre, genres and search pages have no ON AIR block, so a station that won't start says so here.
+test('the status line shows the tuned station with the ON AIR state text and lamp', () => {
+  const radcap = PRESETS[2];
+  for (const [kind, lamp, text] of [['tuning', 'busy', 'TUNING…'], ['retrying', 'busy', 'NO SIGNAL — RETRYING'],
+    ['lost', 'bad', 'NO SIGNAL — PRESS PLAY'], ['unavailable', 'bad', 'PAGE NOT AVAILABLE'], ['off', 'off', 'OFF AIR — PRESS PLAY']]) {
+    const html = renderStatus({ station: radcap, kind, song: 'Old Song' });
+    assert.match(html, /^<p class="status" id="status">/, kind);
+    assert.ok(html.includes(`<span class="lamp ${lamp}">${text}</span>`), kind);
+    assert.ok(html.includes('RadCap Noise Rock') && !html.includes('Old Song'), kind);
+  }
+  const live = renderStatus({ station: radcap, kind: 'playing', song: 'Tulus - 09 Sabbat' });
+  assert.ok(live.includes('<span class="lamp live">ON AIR</span>') && live.includes('Tulus - 09 Sabbat') && !live.includes('RadCap'));
+  assert.ok(renderStatus({ station: radcap, kind: 'playing', song: null }).includes('RadCap Noise Rock'));
+});
+test('before any tune the status line is kept, empty, so the rows never move', () => {
+  assert.equal(renderStatus({ station: null, kind: 'off', song: null }), '<p class="status" id="status"></p>');
+});
+test('the status line escapes station names and songs', () => {
+  const evil = { uuid: 'e', name: '<img src=x onerror=alert(1)>', tags: [], country: 'US' };
+  const off = renderStatus({ station: evil, kind: 'lost', song: null });
+  assert.ok(!off.includes('<img') && off.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  const on = renderStatus({ station: evil, kind: 'playing', song: '<script>"x"</script>' });
+  assert.ok(!on.includes('<script') && on.includes('&lt;script&gt;&quot;x&quot;&lt;/script&gt;'));
+});
+test('genre, genres and search pages carry the status line under the title', () => {
+  const live = { station: PRESETS[2], kind: 'retrying', song: null };
+  const list = { stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: '210', status: 'loading' };
+  const pages = [renderList({ page: 210, title: 'NOISE ROCK', ...list, live }), renderGenres(GENRES, live),
+    renderSearch({ query: 'noise', list, live })];
+  for (const html of pages) {
+    const at = html.indexOf('<p class="status" id="status">');
+    assert.ok(at > html.indexOf('class="stripe"') && html.includes('NO SIGNAL — RETRYING'));
+    assert.ok(at < Math.min(...['<ul', '<form', '<p class="msg'].map((t) => html.indexOf(t)).filter((i) => i >= 0)));
+  }
+  assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: PRESETS, currentUuid: null }).includes('id="status"'));
 });

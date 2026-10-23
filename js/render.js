@@ -67,6 +67,21 @@ export function renderOnAir({ station, kind, song, saved }) {
     + '</section>';
 }
 
+/**
+ * The status line under the title on pages without the ON AIR block (id="status", so it can be
+ * patched on its own): the same state text and lamp as ON AIR, then the song while one is
+ * playing, else the station. Before any station is tuned the line stays, empty, so the rows
+ * below don't move when one is tapped.
+ */
+export function renderStatus({ station = null, kind = 'off', song = null } = {}) {
+  if (!station) return '<p class="status" id="status"></p>';
+  const state = STATES[kind] ?? STATES.off;
+  const what = kind === 'playing' && song
+    ? `<span class="sg"><span class="note" aria-hidden="true">♪</span> ${escapeHtml(song)}</span>`
+    : `<span class="nm">${escapeHtml(displayName(station))}</span>`;
+  return `<p class="status" id="status"><span class="lamp ${state.lamp}">${state.text}</span> ${what}</p>`;
+}
+
 export function renderHome({ onAir, saved, currentUuid }) {
   const rows = saved.map((s, i) => indexRow({
     n: savedPage(i),
@@ -81,11 +96,11 @@ export function renderHome({ onAir, saved, currentUuid }) {
   return masthead('RADIO', { mast: true }) + renderOnAir(onAir) + list + `<ul class="idx links">${links}</ul>`;
 }
 
-export function renderGenres(genres) {
+export function renderGenres(genres, live) {
   const rows = genres.map((g) => indexRow({
     n: g.page, label: escapeHtml(g.label), tag: '»', attrs: `data-page="${g.page}"`,
   })).join('');
-  return masthead('GENRES') + `<ul class="idx genres">${rows}</ul>`;
+  return masthead('GENRES') + renderStatus(live) + `<ul class="idx genres">${rows}</ul>`;
 }
 
 function stationRow(s, { savedUuids, currentUuid, from }) {
@@ -115,16 +130,16 @@ function listBody({ stations, subpage, savedUuids, currentUuid, from, status }) 
 }
 
 export function renderList(args) {
-  return masthead(args.title) + listBody(args);
+  return masthead(args.title) + renderStatus(args.live) + listBody(args);
 }
 
-export function renderSearch({ query, list }) {
+export function renderSearch({ query, list, live }) {
   const form = '<form class="find" data-search role="search">'
     + `<input name="q" type="search" value="${escapeHtml(query)}" placeholder="NAME OR TAG" aria-label="Search stations" `
     + 'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">'
     + '<button type="submit">FIND</button></form>';
   const body = list ? listBody(list) : '<p class="msg hint">TRY <span class="tg">SLUDGE</span>, <span class="tg">NOISE</span> OR A STATION NAME</p>';
-  return masthead('SEARCH') + form + body;
+  return masthead('SEARCH') + renderStatus(live) + form + body;
 }
 
 export function renderFastext({ page, playing }) {

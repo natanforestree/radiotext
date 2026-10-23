@@ -9,7 +9,7 @@ import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderHome, renderGenres, renderList, renderSearch, renderFastext } from './render.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderSearch, renderFastext } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession } from './mediasession.js';
 
 /** @typedef {import('./config.js').Station} Station */
@@ -53,6 +53,8 @@ const isOn = () => ON.has(player.state.kind);
 const shown = () => player.state.station ?? flip.current();
 const onAirArgs = (station = shown()) =>
   ({ station, kind: player.state.kind, song: app.song, saved: Boolean(station) && saved.has(station.uuid) });
+/** The status line on the other pages: the tuned station only, so it stays empty until a tune. */
+const liveArgs = () => ({ station: player.state.station, kind: player.state.kind, song: app.song });
 
 // ---- Rendering ----
 
@@ -61,28 +63,26 @@ function pageHtml() {
   const station = shown();
   const currentUuid = station?.uuid ?? null;
   const r = route(app.page, { savedCount: list.length, genres: GENRES });
-  if (r?.kind === 'genres') return renderGenres(GENRES);
+  const live = liveArgs();
+  if (r?.kind === 'genres') return renderGenres(GENRES, live);
   if (r?.kind === 'genre' || r?.kind === 'search') {
     const l = app.lists.get(app.page);
     const body = l && {
       stations: l.stations, status: l.status, subpage: app.subpage,
       savedUuids: new Set(list.map((s) => s.uuid)), currentUuid, from: String(app.page),
     };
-    if (r.kind === 'search') return renderSearch({ query: app.query, list: body ?? null });
-    return renderList({ page: app.page, title: r.genre.label, ...(body ?? { stations: [], status: 'loading',
+    if (r.kind === 'search') return renderSearch({ query: app.query, list: body ?? null, live });
+    return renderList({ page: app.page, title: r.genre.label, live, ...(body ?? { stations: [], status: 'loading',
       subpage: 1, savedUuids: new Set(), currentUuid, from: String(app.page) }) });
   }
   return renderHome({ onAir: onAirArgs(station), saved: list, currentUuid });
 }
-
-let onAirHtml = null; // the ON AIR block as last rendered, so an unchanged one isn't replaced
 
 /** Re-renders the whole page. Text typed into the search box survives it. */
 function render() {
   const input = pageEl.querySelector('input[name=q]');
   const typed = input && { value: input.value, focused: document.activeElement === input };
   pageEl.innerHTML = pageHtml();
-  onAirHtml = pageEl.querySelector('#onair') ? renderOnAir(onAirArgs()) : null;
   const again = typed && pageEl.querySelector('input[name=q]');
   if (again) {
     again.value = typed.value;
@@ -93,18 +93,43 @@ function render() {
   updateSession();
 }
 
-/** After a player or song change: the ON AIR block, the current row, the keys, the lock screen. */
+/** After a player or song change: the ON AIR block or status line, the current row, the keys,
+ *  the lock screen. */
 function refreshLive() {
   const onair = pageEl.querySelector('#onair');
-  if (onair) {
-    const html = renderOnAir(onAirArgs());
-    if (html !== onAirHtml) onair.outerHTML = html;
-    onAirHtml = html;
-  }
+  if (onair) patchHtml(onair, renderOnAir(onAirArgs()));
+  const status = pageEl.querySelector('#status');
+  if (status) patchHtml(status, renderStatus(liveArgs()));
   const uuid = shown()?.uuid;
   for (const row of pageEl.querySelectorAll('.row[data-tune]')) row.classList.toggle('cur', row.dataset.tune === uuid);
   renderKeys();
   updateSession();
+}
+
+// The ON AIR block and status line are patched in place like the keys below: only text,
+// attributes and children that changed are touched, and an element is replaced only where the
+// structure changed. Swapping the whole block would replace the star under a finger mid-press.
+function patchHtml(el, html) {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  patchNode(el, t.content.firstElementChild);
+}
+function patchNode(o, n) {
+  if (o.isEqualNode(n)) return;
+  if (o.nodeType === Node.TEXT_NODE && n.nodeType === Node.TEXT_NODE) {
+    o.data = n.data;
+    return;
+  }
+  if (o.nodeType !== Node.ELEMENT_NODE || o.nodeName !== n.nodeName) {
+    o.replaceWith(n);
+    return;
+  }
+  for (const { name } of [...o.attributes]) if (!n.hasAttribute(name)) o.removeAttribute(name);
+  for (const { name, value } of n.attributes) if (o.getAttribute(name) !== value) o.setAttribute(name, value);
+  const oldKids = [...o.childNodes];
+  const newKids = [...n.childNodes];
+  if (oldKids.length !== newKids.length) o.replaceChildren(...newKids);
+  else oldKids.forEach((c, i) => patchNode(c, newKids[i]));
 }
 
 // Digits typed so far, shown as P2__ in the header.
