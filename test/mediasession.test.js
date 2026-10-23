@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMetadata, playbackStateFor, bindMediaSession } from '../js/mediasession.js';
+import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from '../js/mediasession.js';
 
 test('metadata uses the song when known', () => {
   const st = { name: 'SomaFM Metal Detector (128k AAC)' };
@@ -21,4 +21,15 @@ test('car next/prev map to station flips, seek is cleared, failures are tolerate
   assert.deepEqual(calls, ['next', 'prev', 'stop', 'play']);
   assert.equal(h.seekforward, null); assert.equal(h.seekbackward, null);
   bindMediaSession(undefined, {});
+});
+test('a logged session reports each action before running it, and passes clears through', () => {
+  const h = {};
+  const ms = { setActionHandler(name, fn) { h[name] = fn; } };
+  const seen = [];
+  const logged = loggedSession(ms, (action) => seen.push('log ' + action));
+  bindMediaSession(logged, { play: () => seen.push('play'), stop: () => seen.push('stop'), next: () => {}, prev: () => {} });
+  h.pause(); h.play();
+  assert.deepEqual(seen, ['log pause', 'stop', 'log play', 'play']);
+  assert.equal(h.seekto, null);
+  assert.equal(loggedSession(undefined, () => {}), undefined);
 });

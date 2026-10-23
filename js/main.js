@@ -1,7 +1,7 @@
 // Radiotext: wires the pages, the fastext keys, the keyboard and the lock screen to the player.
 // Nothing plays on load: browsers need a tap (PLAY or a station row) before audio can start.
 import { RELAY_BASE, PRESETS, GENRES, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
-import { prepareList } from './stations.js';
+import { prepareList, displayName } from './stations.js';
 import { safeStorage, createSaved, createDead } from './saved.js';
 import { createFlip } from './fliplist.js';
 import { route, paginate } from './pages.js';
@@ -9,8 +9,9 @@ import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderSearch, renderFastext } from './render.js';
-import { buildMetadata, playbackStateFor, bindMediaSession } from './mediasession.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderSearch, renderFastext, renderDiag } from './render.js';
+import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
+import { createDiag, diagText } from './diag.js';
 
 /** @typedef {import('./config.js').Station} Station */
 
@@ -25,6 +26,7 @@ const audio = /** @type {HTMLAudioElement} */ (document.getElementById('radio'))
 const store = safeStorage((() => { try { return globalThis.localStorage; } catch { return null; } })());
 const saved = createSaved(store, PRESETS);
 const dead = createDead(store);
+const diag = createDiag(store);
 const canPlay = (mime) => audio.canPlayType(mime) !== '';
 // window.fetch throws "Illegal invocation" when called as a method of another object.
 const fetchFn = (...args) => globalThis.fetch(...args);
@@ -65,6 +67,7 @@ function pageHtml() {
   const r = route(app.page, { savedCount: list.length, genres: GENRES });
   const live = liveArgs();
   if (r?.kind === 'genres') return renderGenres(GENRES, live);
+  if (r?.kind === 'diag') return renderDiag(diag.list(), live);
   if (r?.kind === 'genre' || r?.kind === 'search') {
     const l = app.lists.get(app.page);
     const body = l && {
@@ -166,6 +169,7 @@ function updateSession() {
   const key = station ? `${station.uuid}\n${app.song ?? ''}` : '';
   if (key !== sessionKey) {
     sessionKey = key;
+    diag.note('lockscreen', station ? app.song ?? displayName(station) : 'cleared');
     try {
       ms.metadata = station ? new MediaMetadata(buildMetadata({ station, song: app.song })) : null;
     } catch { /* no MediaMetadata in this browser */ }
@@ -175,7 +179,8 @@ function updateSession() {
 
 // ---- Playback ----
 
-function onChange({ kind }) {
+function onChange({ kind, station }) {
+  diag.note('state', `${kind} ${station ? displayName(station) : ''}`);
   if (kind === 'playing' || kind === 'unavailable' || kind === 'off' || kind === 'lost') noise.stop();
   refreshLive();
 }
@@ -364,6 +369,44 @@ function rebuildSavedFlip() {
   flip.set(list, i, 'saved');
 }
 
+// ---- Engineering log ----
+
+/** COPY puts the log on the clipboard as text, to paste into a message. CLEAR empties it. */
+function diagKey(action, button) {
+  if (action === 'clear') {
+    diag.clear();
+    render();
+    return;
+  }
+  const copy = navigator.clipboard?.writeText(diagText(diag.list())) ?? Promise.reject(new Error('no clipboard'));
+  copy.then(() => { button.textContent = 'COPIED'; }, () => { button.textContent = 'COPY FAILED'; });
+}
+
+// What the <audio> element reports, with the flags that tell an outside pause from an error or
+// the stream ending, and the host it plays from (the relay or the station).
+for (const type of ['playing', 'pause', 'waiting', 'stalled', 'error', 'ended', 'emptied']) {
+  audio.addEventListener(type, () => {
+    let host = '';
+    try { host = audio.src ? new URL(audio.src).host : ''; } catch { /* no src */ }
+    const flags = [audio.ended && 'ended', audio.error && `error ${audio.error.code}`].filter(Boolean);
+    diag.note('audio', [type, ...flags, type === 'playing' || type === 'error' ? host : ''].join(' '));
+  });
+}
+addEventListener('pagehide', (e) => diag.note('page', e.persisted ? 'hide, kept' : 'hide'));
+addEventListener('pageshow', (e) => diag.note('page', e.persisted ? 'show, restored' : 'show'));
+addEventListener('online', () => diag.note('net', 'online'));
+addEventListener('offline', () => diag.note('net', 'offline'));
+
+// A phone freezes pages it has sent to the background. A heartbeat that comes back late shows
+// how long the page was frozen. Background timers may be held to once a minute, so only gaps
+// longer than that count.
+let beat = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  if (now - beat > 70000) diag.note('frozen', `${Math.round((now - beat) / 1000)} s`);
+  beat = now;
+}, 5000);
+
 // ---- Input ----
 
 function tapStation(uuid, from) {
@@ -393,6 +436,7 @@ function onClick(e) {
   else if (d.page) goTo(Number(d.page));
   else if (d.sub) changeSub(d.sub === 'next' ? 1 : -1);
   else if (d.key) pressKey(d.key);
+  else if (d.diag) diagKey(d.diag, el);
 }
 pageEl.addEventListener('click', onClick);
 keysEl.addEventListener('click', onClick);
@@ -442,7 +486,9 @@ document.addEventListener('keydown', (e) => {
 
 // ---- Start ----
 
-bindMediaSession(navigator.mediaSession, {
+diag.note('open', matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+  ? 'home-screen app' : 'browser tab');
+bindMediaSession(loggedSession(navigator.mediaSession, (action) => diag.note('remote', action)), {
   play: startPlay,
   stop: () => player.stop(),
   next: () => flipBy(1),
@@ -451,5 +497,6 @@ bindMediaSession(navigator.mediaSession, {
 render();
 setInterval(renderTop, 15000);
 document.addEventListener('visibilitychange', () => {
+  diag.note('page', document.visibilityState);
   if (document.visibilityState === 'visible') renderTop(); // timers are throttled in the background
 });

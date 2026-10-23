@@ -6,7 +6,7 @@ Live at https://natanforestree.github.io/radiotext/
 
 ## Using it
 
-- **Pages:** 100 is home, 101-199 are your saved stations, 200 lists the genres, 210-228 are the genre pages (more than one subpage when a genre is long) and 300 is search. Type a three-digit number on a keyboard to jump to a page.
+- **Pages:** 100 is home, 101-199 are your saved stations, 200 lists the genres, 210-228 are the genre pages (more than one subpage when a genre is long) 300 is search and 999 is the engineering log: what the player, the audio, the lock screen and the car did, with times, to trace a stop that only happens away from a desk (COPY puts it on the clipboard). Type a three-digit number on a keyboard to jump to a page.
 - **Coloured keys along the bottom:** red = previous station, green = play/stop, yellow = next station, cyan = browse (it becomes HOME away from the home page).
 - **Keyboard:** left/right arrows for previous/next, Space for play/stop, Esc for home.
 - **In the car:** previous/next on the steering wheel or lock screen flip through the current list (saved stations, or the genre/search list you tapped from). The track title comes from SomaFM and laut.fm now-playing where available.

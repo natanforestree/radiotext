@@ -41,3 +41,16 @@ export function bindMediaSession(ms, { play, stop, next, prev }) {
   bind('seekforward', null);
   bind('seekto', null);
 }
+
+/**
+ * Wraps a MediaSession so each action that fires is reported to `note` before it runs: the
+ * engineering log then shows which commands the lock screen or the car sent.
+ * @param {MediaSession|undefined} ms
+ * @param {(action: string) => void} note
+ */
+export function loggedSession(ms, note) {
+  if (!ms) return ms;
+  return {
+    setActionHandler: (action, fn) => ms.setActionHandler(action, fn ? () => { note(action); fn(); } : null),
+  };
+}

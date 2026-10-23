@@ -3,6 +3,7 @@ import { displayName, shortTag } from './stations.js';
 import { savedPage, paginate } from './pages.js';
 import { GENRES, PER_PAGE } from './config.js';
 import { mosaicSvg, TITLE_STRIPE, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
+import { clockTime } from './diag.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -92,7 +93,8 @@ export function renderHome({ onAir, saved, currentUuid }) {
   })).join('');
   const list = rows ? `<ul class="idx saved">${rows}</ul>` : '<p class="msg">STAR A STATION TO SAVE IT HERE</p>';
   const links = indexRow({ n: 200, label: 'BROWSE GENRES', tag: '»', attrs: 'data-page="200"' })
-    + indexRow({ n: 300, label: 'SEARCH', tag: '»', attrs: 'data-page="300"' });
+    + indexRow({ n: 300, label: 'SEARCH', tag: '»', attrs: 'data-page="300"' })
+    + indexRow({ n: 999, label: 'ENGINEERING', tag: '»', attrs: 'data-page="999"' });
   return masthead('RADIO', { mast: true }) + renderOnAir(onAir) + list + `<ul class="idx links">${links}</ul>`;
 }
 
@@ -140,6 +142,15 @@ export function renderSearch({ query, list, live }) {
     + '<button type="submit">FIND</button></form>';
   const body = list ? listBody(list) : '<p class="msg hint">TRY <span class="tg">SLUDGE</span>, <span class="tg">NOISE</span> OR A STATION NAME</p>';
   return masthead('SEARCH') + renderStatus(live) + form + body;
+}
+
+/** Page 999: the engineering log, newest first, with keys to copy it as text or clear it. */
+export function renderDiag(entries, live) {
+  const rows = entries.slice().reverse().map(([t, e, d]) => `<li><span class="tm">${clockTime(t)}</span> `
+    + `<span class="ev">${escapeHtml(e)}</span> ${escapeHtml(d)}</li>`).join('');
+  const keys = '<div class="diag-keys"><button data-diag="copy">COPY</button><button data-diag="clear">CLEAR</button></div>';
+  return masthead('ENGINEERING') + renderStatus(live) + keys
+    + (rows ? `<ol class="diag">${rows}</ol>` : '<p class="msg">NOTHING LOGGED YET</p>');
 }
 
 export function renderFastext({ page, playing }) {

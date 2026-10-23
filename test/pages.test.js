@@ -12,6 +12,7 @@ test('page numbers route to the right place', () => {
   assert.equal(route(212, ctx).genre.label, 'SLUDGE');
   assert.equal(route(229, ctx), null);
   assert.deepEqual(route(300, ctx), { kind: 'search' });
+  assert.deepEqual(route(999, ctx), { kind: 'diag' });
   assert.equal(savedPage(0), 101);
 });
 test('paginate clamps and counts subpages', () => {

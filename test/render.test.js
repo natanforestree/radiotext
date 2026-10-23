@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderFastext, renderSearch } from '../js/render.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderFastext, renderSearch, renderDiag } from '../js/render.js';
 import { GENRES } from '../js/config.js';
 import { PRESETS } from '../js/config.js';
 
@@ -21,7 +21,16 @@ test('home lists saved stations as pages 101.. and marks the current one', () =>
   const html = renderHome({ onAir: { station: PRESETS[1], kind: 'playing', song: null, saved: true }, saved: PRESETS, currentUuid: PRESETS[1].uuid });
   assert.match(html, /class="row cur"[^>]*data-tune="960de41d-0601-11e8-ae97-52543be04c81"/);
   for (const n of ['101', '102', '103']) assert.ok(html.includes(n));
-  assert.ok(html.includes('data-page="200"') && html.includes('data-page="300"'));
+  assert.ok(html.includes('data-page="200"') && html.includes('data-page="300"') && html.includes('data-page="999"'));
+});
+test('the engineering log lists notes newest first, escaped, with copy and clear keys', () => {
+  const at = new Date(2026, 9, 23, 7, 5, 9).getTime();
+  const html = renderDiag([[at, 'remote', 'pause'], [at + 1000, 'state', 'off <b>X</b>']], {});
+  assert.ok(html.indexOf('07:05:10') < html.indexOf('07:05:09'));
+  assert.ok(html.includes('off &lt;b&gt;X&lt;/b&gt;') && !html.includes('<b>'));
+  assert.ok(html.includes('data-diag="copy"') && html.includes('data-diag="clear"'));
+  assert.ok(html.includes('id="status"'));
+  assert.ok(renderDiag([], {}).includes('NOTHING LOGGED YET'));
 });
 test('on-air status lines follow the player state', () => {
   assert.ok(renderOnAir({ station: null, kind: 'off', song: null, saved: false }).includes('OFF AIR — PRESS PLAY'));

@@ -1,4 +1,5 @@
-// Page numbers: 100 home, 101-199 saved, 200 genres, 210-228 genre pages, 300 search.
+// Page numbers: 100 home, 101-199 saved, 200 genres, 210-228 genre pages, 300 search,
+// 999 engineering log.
 
 export const savedPage = (i) => 101 + i;
 
@@ -8,6 +9,7 @@ export function route(n, { savedCount, genres }) {
   if (n >= 101 && n <= 199) return n - 101 < savedCount ? { kind: 'saved', index: n - 101 } : null;
   if (n === 200) return { kind: 'genres' };
   if (n === 300) return { kind: 'search' };
+  if (n === 999) return { kind: 'diag' };
   const genre = genres.find((g) => g.page === n);
   return genre ? { kind: 'genre', genre } : null;
 }

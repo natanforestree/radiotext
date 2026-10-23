@@ -316,6 +316,16 @@ svg [fill="var(--white)"] { fill: var(--white); }
 .find button { flex: none; padding: 0 0.6em; background: var(--blue); color: var(--yellow); }
 .find button:active { background: var(--yellow); color: var(--blue); }
 
+/* ---- Engineering log (999) ---- */
+
+.diag-keys { display: flex; gap: 0.6em; padding: 0.8em var(--pad) 0.4em; }
+.diag-keys button { min-height: max(var(--tap), 2.2em); padding: 0 0.8em; background: var(--blue); color: var(--yellow); }
+.diag-keys button:active { background: var(--yellow); color: var(--blue); }
+.diag { padding: 0.3em var(--pad) 1em; font-size: 0.8em; overflow-wrap: anywhere; list-style: none; }
+.diag li { padding: 0.15em 0; }
+.diag .tm { color: var(--cyan); }
+.diag .ev { color: var(--yellow); }
+
 /* ---- Fastext keys: 2x2, pinned to the bottom ---- */
 
 #fastext {
