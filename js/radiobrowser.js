@@ -1,14 +1,21 @@
 // Radio Browser API client. `fetch` is injected so it can be tested.
-import { SERVERS_URL, API_FALLBACK, LIST_LIMIT, SEARCH_LIMIT } from './config.js';
+import { SERVERS_URL, API_FALLBACK, LIST_LIMIT, SEARCH_LIMIT, RB_TIMEOUT_MS } from './config.js';
 
 const FILTERS = 'hidebroken=true&order=votes&reverse=true';
 
-export function createRadioBrowser({ fetch, random = Math.random }) {
+export function createRadioBrowser({ fetch, random = Math.random, timeoutMs = RB_TIMEOUT_MS }) {
   let basePromise = null;
+
+  // Each request gives up after timeoutMs and fails like any other, so a hung server can't hold
+  // SEARCHING… for a minute. Browsers without AbortSignal.timeout just wait.
+  const options = () => {
+    const AS = globalThis.AbortSignal;
+    return typeof AS?.timeout === 'function' ? { signal: AS.timeout(timeoutMs) } : {};
+  };
 
   async function pickBase() {
     try {
-      const res = await fetch(SERVERS_URL);
+      const res = await fetch(SERVERS_URL, options());
       if (!res.ok) return API_FALLBACK;
       const rows = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) return API_FALLBACK;
@@ -23,7 +30,7 @@ export function createRadioBrowser({ fetch, random = Math.random }) {
 
   async function get(path) {
     const attempt = async (base) => {
-      const res = await fetch(base + path);
+      const res = await fetch(base + path, options());
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     };

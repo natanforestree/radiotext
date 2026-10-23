@@ -41,3 +41,39 @@ test('retries once on the fallback when a non-fallback base fails', async () => 
   assert.ok(calls.some((u) => u.startsWith('https://de1.') && u.includes('name=jazz')));
   assert.ok(calls.some((u) => u.startsWith('https://de1.') && u.includes('tag=jazz') && !u.includes('tagExact')));
 });
+
+// A hung server must not hold SEARCHING… for a minute: every request gives up after RB_TIMEOUT_MS.
+// `hang` acts like a fetch to a server that never answers: it fails only when its signal aborts.
+const hang = (_url, opts) => new Promise((_, reject) => {
+  opts.signal.addEventListener('abort', () => reject(opts.signal.reason), { once: true });
+});
+const NOISE_ROCK = { page: 210, label: 'NOISE ROCK', tags: ['noise rock'] };
+test('every request carries a timeout signal', async () => {
+  const seen = [];
+  const fetch = (url, opts) => { seen.push(opts); return json([]); };
+  await createRadioBrowser({ fetch }).search('noise');
+  assert.equal(seen.length, 3);
+  for (const opts of seen) assert.ok(opts?.signal instanceof AbortSignal && !opts.signal.aborted);
+});
+test('a hung server times out and falls back to de1; if de1 hangs too, the request fails', async (t) => {
+  // Node's AbortSignal.timeout timer doesn't hold the event loop open, so this one does.
+  const alive = setInterval(() => {}, 1000);
+  t.after(() => clearInterval(alive));
+  const fetch = (url, opts) => url.endsWith('/servers') ? json([{ name: 'nl1.api.radio-browser.info' }])
+    : url.startsWith('https://nl1') ? hang(url, opts) : json([row('z', 1)]);
+  const rows = await createRadioBrowser({ fetch, random: () => 0, timeoutMs: 20 }).search('jazz');
+  assert.deepEqual(rows.map((r) => r.stationuuid), ['z']);
+  await assert.rejects(createRadioBrowser({ fetch: hang, timeoutMs: 20 }).byGenre(NOISE_ROCK), { name: 'TimeoutError' });
+});
+test('browsers without AbortSignal.timeout send requests without a signal', async () => {
+  const real = AbortSignal.timeout;
+  AbortSignal.timeout = undefined;
+  try {
+    const seen = [];
+    await createRadioBrowser({ fetch: (url, opts) => { seen.push(opts); return json([]); } }).byGenre(NOISE_ROCK);
+    assert.equal(seen.length, 2);
+    for (const opts of seen) assert.equal(opts?.signal, undefined);
+  } finally {
+    AbortSignal.timeout = real;
+  }
+});

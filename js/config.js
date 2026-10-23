@@ -55,6 +55,7 @@ export const LIST_LIMIT = 300;
 export const SEARCH_LIMIT = 100;
 
 export const TUNE_TIMEOUT_MS = 8000;
+export const RB_TIMEOUT_MS = 8000;
 export const STALL_MS = 10000;
 export const GIVE_UP_MS = 120000;
 export const STOP_DROP_MS = 30000;
