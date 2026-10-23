@@ -1,5 +1,6 @@
-// Tiny HTTP/1.0 helpers for the relay: build the request, find and parse the
-// response head (HTTP or ICY status lines), resolve redirects. Pure functions.
+// Tiny HTTP/1.0 helpers for the relay: decide whether a station may be relayed,
+// build the request, find and parse the response head (HTTP or ICY status lines),
+// resolve redirects. Pure functions.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STATUS = /^(?:HTTP\/\d(?:\.\d)?|ICY)\s+(\d{3})(?:\s|$)/;
@@ -7,6 +8,20 @@ const STATUS = /^(?:HTTP\/\d(?:\.\d)?|ICY)\s+(\d{3})(?:\s|$)/;
 /** @param {unknown} s @returns {boolean} true for a lower-case Radio Browser station uuid. */
 export function isUuid(s) {
   return typeof s === 'string' && UUID.test(s);
+}
+
+/**
+ * The stream the relay may open for a Radio Browser record, or why not: only a known station
+ * that passed Radio Browser's last check, and whose resolved stream is plain http.
+ * @param {any} station the byuuid record, or null
+ * @returns {{url: string}|{status: number, error: string}}
+ */
+export function relayTarget(station) {
+  if (!station) return { status: 404, error: 'unknown station' };
+  if (station.lastcheckok !== 1) return { status: 404, error: 'station failed its last check' };
+  const url = String(station.url_resolved || '');
+  if (!url.startsWith('http://')) return { status: 400, error: 'not an http-only station' };
+  return { url };
 }
 
 /** @param {URL} url @returns {string} a plain HTTP/1.0 GET for that URL. */

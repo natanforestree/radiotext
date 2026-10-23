@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType } from '../src/http1.js';
+import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType, relayTarget } from '../src/http1.js';
 
 const enc = (s) => new TextEncoder().encode(s);
 
@@ -38,5 +38,16 @@ test('safeAudioType keeps audio types and maps everything else to audio/mpeg', (
   for (const bad of ['text/html', 'image/svg+xml', 'application/xml', 'text/xml', 'text/plain', 'application/octet-stream',
     '', undefined, null, 'audio/', 'audio/mpeg\r\nX-Evil: 1', 'audio/mp\u00e9g', 'text/html; x=audio/mpeg']) {
     assert.equal(safeAudioType(bad), 'audio/mpeg', `for ${JSON.stringify(bad)}`);
+  }
+});
+test('relayTarget relays only known, checked, http-only stations', () => {
+  const radcap = { url_resolved: 'http://79.120.39.202:8000/noiserock', lastcheckok: 1 };
+  assert.deepEqual(relayTarget(radcap), { url: 'http://79.120.39.202:8000/noiserock' });
+  assert.deepEqual(relayTarget(null), { status: 404, error: 'unknown station' });
+  for (const lastcheckok of [0, undefined, '1', true]) {
+    assert.deepEqual(relayTarget({ ...radcap, lastcheckok }), { status: 404, error: 'station failed its last check' }, `for ${JSON.stringify(lastcheckok)}`);
+  }
+  for (const url_resolved of ['https://ice5.somafm.com/metal-128-aac', '', undefined, 'ftp://x/y', ' http://x/y']) {
+    assert.deepEqual(relayTarget({ url_resolved, lastcheckok: 1 }), { status: 400, error: 'not an http-only station' }, `for ${JSON.stringify(url_resolved)}`);
   }
 });

@@ -1,9 +1,10 @@
 // radiotext-relay: streams an http-only Radio Browser station over https.
 // GET /s/{stationuuid} only. It never takes a URL from the client: the stream
-// address always comes from Radio Browser's record for that uuid.
+// address always comes from Radio Browser's record for that uuid, and only a
+// station that passed Radio Browser's last check is relayed.
 
 import { connect } from 'cloudflare:sockets';
-import { isUuid, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType } from './http1.js';
+import { isUuid, relayTarget, buildRequest, findHeadEnd, parseHead, resolveLocation, safeAudioType } from './http1.js';
 
 const API = 'https://de1.api.radio-browser.info';
 const UA = 'Radiotext-relay/1.0';
@@ -30,7 +31,12 @@ function plain(status, text) {
   });
 }
 
-/** A missing Referer is allowed; otherwise only the site and localhost may embed the relay. */
+/**
+ * A missing Referer is allowed; otherwise only the site and localhost may embed the relay.
+ * The site itself sends no Referer at all (index.html has <meta name="referrer"
+ * content="no-referrer">, because SomaFM refuses foreign Referers), so requiring one would
+ * break the site.
+ */
 function refererAllowed(referer) {
   if (!referer) return true;
   let origin;
@@ -145,12 +151,10 @@ export default {
     if (!m || !isUuid(m[1])) return plain(404, 'not found');
 
     try {
-      const station = await lookupStation(m[1], ctx);
-      if (!station) return plain(404, 'unknown station');
-      const streamUrl = String(station.url_resolved || '');
-      if (!streamUrl.startsWith('http://')) return plain(400, 'not an http-only station');
+      const target = relayTarget(await lookupStation(m[1], ctx));
+      if (!('url' in target)) return plain(target.status, target.error);
 
-      const { body, contentType } = await openStream(streamUrl);
+      const { body, contentType } = await openStream(target.url);
       // Whatever upstream (or a redirect it chose) claims, only audio is served.
       return new Response(body, {
         status: 200,
