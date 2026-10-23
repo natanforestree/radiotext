@@ -92,7 +92,8 @@ test('stop pauses now and drops the connection after 30 s; resume goes live', (t
   p.tune(HTTPS); audio.fire('playing'); p.stop();
   assert.equal(audio.paused, true); assert.equal(audio.src, HTTPS.url); assert.equal(p.state.kind, 'off');
   audio.fire('error'); assert.equal(p.state.kind, 'off');
-  t.mock.timers.tick(30000); assert.equal(audio.src, '');
+  t.mock.timers.tick(29999); assert.equal(audio.src, HTTPS.url);
+  t.mock.timers.tick(1); assert.equal(audio.src, '');
   p.resume(); assert.equal(audio.src, HTTPS.url); assert.equal(p.state.kind, 'tuning');
 });
 
@@ -131,14 +132,24 @@ test('a pause during a stall watch is not a stall, so the player never plays by 
   audio.currentTime = 0; audio.fire('stalled'); audio.pause(); const n = audio.plays;
   t.mock.timers.tick(10000); t.mock.timers.tick(110000); assert.equal(audio.plays, n); assert.equal(audio.paused, true);
 });
-test('an outside pause (phone call, Siri) goes off, drops after 30 s, and PLAY reconnects', (t) => {
+// Ruling 12: a hands-free call often runs past 30 s, so an outside pause keeps src for 10 minutes.
+test('an outside pause (phone call, Siri) goes off, drops after 10 minutes, and PLAY reconnects', (t) => {
   const { audio, kinds, p } = setup(t);
   p.tune(HTTPS); audio.fire('playing'); audio.fire('waiting');
   audio.pause(); audio.fire('pause');
   assert.equal(p.state.kind, 'off'); assert.deepEqual(kinds, ['tuning', 'playing', 'off']);
-  const n = audio.plays; t.mock.timers.tick(29999); assert.equal(audio.src, HTTPS.url); assert.equal(audio.plays, n);
-  t.mock.timers.tick(1); assert.equal(audio.src, '');
+  const n = audio.plays;
+  t.mock.timers.tick(30000); assert.equal(audio.src, HTTPS.url); // 0:30, where STOP would drop it
+  t.mock.timers.tick(569000); assert.equal(audio.src, HTTPS.url); assert.equal(audio.plays, n); // 9:59
+  t.mock.timers.tick(1000); assert.equal(audio.src, ''); // 10:00
   p.resume(); assert.equal(audio.src, HTTPS.url); assert.equal(p.state.kind, 'tuning');
+});
+test('when the phone resumes audio late in the 10 minutes, the radio is back on and stays', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); audio.pause(); audio.fire('pause');
+  t.mock.timers.tick(599000); audio.play(); audio.fire('playing');
+  assert.equal(p.state.kind, 'playing'); assert.deepEqual(kinds, ['tuning', 'playing', 'off', 'playing']);
+  t.mock.timers.tick(600000); assert.equal(audio.src, HTTPS.url); assert.equal(p.state.kind, 'playing');
 });
 test('when the phone resumes audio it paused (a call ends), the radio is back on', (t) => {
   const { audio, kinds, p } = setup(t);

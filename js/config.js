@@ -58,6 +58,7 @@ export const TUNE_TIMEOUT_MS = 8000;
 export const STALL_MS = 10000;
 export const GIVE_UP_MS = 120000;
 export const STOP_DROP_MS = 30000;
+export const OUTSIDE_PAUSE_DROP_MS = 600000; // a phone call or Siri: long enough for most calls (Ruling 12)
 export const STATIC_MAX_MS = 1500;
 export const POLL_MS = 30000;
 export const DEAD_TTL_MS = 30 * 24 * 3600 * 1000;

@@ -6,6 +6,7 @@
 //    └────► unavailable (at once when there is nothing to try)      lost
 //   stop() ──► off from any state, and so do an outside pause while playing (phone call, Siri)
 //   and a play() blocked by autoplay rules. resume() re-tunes the current station.
+//   Off keeps src for 30 s after STOP, and for 10 minutes after an outside pause.
 // Candidates are tried in order, except that the one that last worked for a station this
 // session goes first (an https attempt that hangs costs the whole 8 s tune timeout).
 //
@@ -15,7 +16,7 @@
 // - Media events count only while `audio.src` is the URL this player last assigned and the
 //   current state expects them.
 import { streamCandidates, httpsVariant } from './stations.js';
-import { TUNE_TIMEOUT_MS, STALL_MS, STOP_DROP_MS } from './config.js';
+import { TUNE_TIMEOUT_MS, STALL_MS, STOP_DROP_MS, OUTSIDE_PAUSE_DROP_MS } from './config.js';
 import { backoffDelay } from './reconnect.js';
 
 /**
@@ -86,11 +87,12 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     audio.removeAttribute('src');
     audio.load();
   };
-  // Pause now and keep src for STOP_DROP_MS, so lock-screen and car controls survive a short stop
-  // (ledger Ruling 1). pause() also stops a load that times out but connects later from playing.
-  const park = () => {
+  // Pause now and keep src for `ms` (STOP_DROP_MS by default), so lock-screen and car controls
+  // survive a short stop (ledger Ruling 1). pause() also stops a load that times out but
+  // connects later from playing.
+  const park = (ms = STOP_DROP_MS) => {
     audio.pause();
-    arm(STOP_DROP_MS, release);
+    arm(ms, release);
   };
 
   const tryCandidate = () => {
@@ -161,8 +163,8 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
       // Also accepted between attempts: a stalled or timed-out load that came back is live audio.
       inFlight = false;
     } else if (state.kind === 'off') {
-      // iOS and Android resume audio they paused once a short call ends. The src is still
-      // ours (the 30 s drop hasn't run), so the radio is simply back on.
+      // iOS and Android resume audio they paused once a call ends. The src is still ours
+      // (the 10-minute drop hasn't run), so the radio is simply back on.
       if (!pausedOutside || audio.paused) return;
       pausedOutside = false;
     } else if (state.kind !== 'playing') {
@@ -218,13 +220,14 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     set('tuning', station);
   }
 
-  // Off, keeping src for STOP_DROP_MS. `outside` marks a pause the player didn't make.
+  // Off, keeping src for STOP_DROP_MS. `outside` marks a pause the player didn't make: a phone
+  // call often runs past 30 s, so that keeps src for OUTSIDE_PAUSE_DROP_MS (ledger Ruling 12).
   function halt(outside) {
     gen++;
     clearTimer();
     inFlight = false;
     pausedOutside = outside;
-    park();
+    park(outside ? OUTSIDE_PAUSE_DROP_MS : STOP_DROP_MS);
     set('off');
   }
   function stop() {
