@@ -4,7 +4,10 @@ import { createPlayer } from '../js/player.js';
 import { FakeAudio } from './fake-audio.js';
 
 const HTTPS = { uuid: 'soma', url: 'https://ice5.somafm.com/metal-128-aac' };
-const HTTP = { uuid: 'radcap', url: 'http://79.120.39.202:8000/noiserock' };
+// An http station on a hostname tries https first; one on a bare IP goes straight to the relay.
+const HTTP = { uuid: 'cia', url: 'http://stream.example.org:8000/x' };
+const HTTP_AS_HTTPS = 'https://stream.example.org:8000/x';
+const IP = { uuid: 'radcap', url: 'http://79.120.39.202:8000/noiserock' };
 const RELAY = 'https://relay.example';
 const deadSpy = () => { const added = []; return { added, has: (u) => added.includes(u), add: (u) => added.push(u) }; };
 const setup = (t, opts = {}) => {
@@ -21,14 +24,14 @@ test('an https station plays directly', (t) => {
 });
 test('an http station tries https first, then the relay', (t) => {
   const { audio, p } = setup(t);
-  p.tune(HTTP); assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock');
-  audio.fire('error'); assert.equal(audio.src, RELAY + '/s/radcap');
+  p.tune(HTTP); assert.equal(audio.src, HTTP_AS_HTTPS);
+  audio.fire('error'); assert.equal(audio.src, RELAY + '/s/cia');
   audio.fire('playing'); assert.equal(p.state.kind, 'playing');
 });
 test('a candidate that never starts times out after 8 s', (t) => {
   const { audio, p } = setup(t);
-  p.tune(HTTP); t.mock.timers.tick(7999); assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock');
-  t.mock.timers.tick(1); assert.equal(audio.src, RELAY + '/s/radcap');
+  p.tune(HTTP); t.mock.timers.tick(7999); assert.equal(audio.src, HTTP_AS_HTTPS);
+  t.mock.timers.tick(1); assert.equal(audio.src, RELAY + '/s/cia');
 });
 test('a stale tune timeout never touches the next station', (t) => {
   const { audio, p } = setup(t);
@@ -39,7 +42,7 @@ test('a stale tune timeout never touches the next station', (t) => {
 test('marks an http station dead only with no relay and while online', (t) => {
   const a = setup(t, { relayBase: null });
   a.p.tune(HTTP); a.audio.fire('error');
-  assert.equal(a.p.state.kind, 'unavailable'); assert.deepEqual(a.dead.added, ['radcap']);
+  assert.equal(a.p.state.kind, 'unavailable'); assert.deepEqual(a.dead.added, ['cia']);
 });
 test('does not mark a station dead while offline', (t) => {
   const { audio, dead, p } = setup(t, { relayBase: null, online: () => false });
@@ -179,15 +182,15 @@ test('a late NotAllowedError from an old tune leaves the current one alone', asy
   const rejects = []; audio.play = () => new Promise((_, reject) => rejects.push(reject));
   p.tune(HTTPS); p.tune(HTTP);
   rejects[0](Object.assign(new Error('x'), { name: 'NotAllowedError' })); await null; await null;
-  assert.equal(p.state.kind, 'tuning'); assert.equal(p.state.station.uuid, 'radcap');
+  assert.equal(p.state.kind, 'tuning'); assert.equal(p.state.station.uuid, 'cia');
 });
 test('fast flips: a pending retry never touches the next station; stop then resume keeps it', (t) => {
   const { audio, p } = setup(t);
   p.tune(HTTPS); audio.fire('playing'); audio.fire('error');
   p.tune(HTTP); t.mock.timers.tick(1000);
-  assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock'); assert.equal(p.state.kind, 'tuning');
+  assert.equal(audio.src, HTTP_AS_HTTPS); assert.equal(p.state.kind, 'tuning');
   audio.fire('playing'); p.stop(); t.mock.timers.tick(10000); p.resume(); audio.fire('playing'); t.mock.timers.tick(25000);
-  assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock'); assert.equal(p.state.kind, 'playing');
+  assert.equal(audio.src, HTTP_AS_HTTPS); assert.equal(p.state.kind, 'playing');
 });
 test('stop during a retry attempt ignores its late events and drops after 30 s', (t) => {
   const { audio, p } = setup(t);
@@ -201,4 +204,33 @@ test('a station that never starts is paused, so a late connection stays silent, 
   assert.equal(p.state.kind, 'unavailable'); assert.equal(audio.paused, true);
   audio.fire('playing'); assert.equal(p.state.kind, 'unavailable');
   t.mock.timers.tick(30000); assert.equal(audio.src, '');
+});
+
+// Ruling 10: a bare IP skips https; the candidate that worked is tried first next time.
+test('an http station on a bare IP goes straight to the relay', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(IP); assert.equal(audio.src, RELAY + '/s/radcap');
+  audio.fire('playing'); assert.deepEqual(kinds, ['tuning', 'playing']);
+});
+test('with no relay, a bare-IP station is unavailable at once, marked dead only while online', (t) => {
+  const a = setup(t, { relayBase: null });
+  a.p.tune(HTTPS); a.audio.fire('playing'); const n = a.audio.plays;
+  a.p.tune(IP);
+  assert.equal(a.p.state.kind, 'unavailable'); assert.equal(a.p.state.station.uuid, 'radcap');
+  assert.deepEqual(a.kinds, ['tuning', 'playing', 'unavailable']);
+  assert.equal(a.audio.paused, true); assert.equal(a.audio.plays, n); assert.deepEqual(a.dead.added, ['radcap']);
+  a.audio.fire('playing'); assert.equal(a.p.state.kind, 'unavailable'); // the old stream stays silent
+  a.p.tune(HTTPS); assert.equal(a.audio.src, HTTPS.url); assert.equal(a.p.state.kind, 'tuning');
+  t.mock.timers.reset();
+  const b = setup(t, { relayBase: null, online: () => false });
+  b.p.tune(IP); assert.equal(b.p.state.kind, 'unavailable'); assert.deepEqual(b.dead.added, []);
+});
+test('the candidate that worked is tried first on the next tune of that station', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTP); audio.fire('error'); assert.equal(audio.src, RELAY + '/s/cia'); audio.fire('playing');
+  p.tune(HTTPS); audio.fire('playing');
+  p.tune(HTTP); assert.equal(audio.src, RELAY + '/s/cia');
+  audio.fire('error'); assert.equal(audio.src, HTTP_AS_HTTPS); // if it fails, the others are still tried
+  audio.fire('playing'); p.tune(HTTPS); p.tune(HTTP); assert.equal(audio.src, HTTP_AS_HTTPS);
+  p.tune({ uuid: 'other', url: 'http://other.example.org/y' }); assert.equal(audio.src, 'https://other.example.org/y');
 });

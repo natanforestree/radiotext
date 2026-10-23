@@ -56,10 +56,20 @@ test('httpsVariant swaps the scheme and keeps the port', () => {
   assert.equal(httpsVariant('https://x/y'), null);
 });
 test('streamCandidates tries https first, then the relay', () => {
-  const st = { uuid: 'ac49', url: 'http://79.120.39.202:8000/noiserock' };
-  assert.deepEqual(streamCandidates(st, 'https://relay.example'), ['https://79.120.39.202:8000/noiserock', 'https://relay.example/s/ac49']);
-  assert.deepEqual(streamCandidates(st, null), ['https://79.120.39.202:8000/noiserock']);
+  const st = { uuid: '12xu', url: 'http://stream.laut.fm/12xu' };
+  assert.deepEqual(streamCandidates(st, 'https://relay.example'), ['https://stream.laut.fm/12xu', 'https://relay.example/s/12xu']);
+  assert.deepEqual(streamCandidates(st, null), ['https://stream.laut.fm/12xu']);
   assert.deepEqual(streamCandidates({ uuid: 'z', url: 'https://ice5.somafm.com/metal-128-aac' }, 'https://relay.example'), ['https://ice5.somafm.com/metal-128-aac']);
+  // A hostname that only starts like an address is still a hostname.
+  assert.deepEqual(streamCandidates({ uuid: 'n', url: 'http://1.2.3.4.example.net/x' }, null), ['https://1.2.3.4.example.net/x']);
+});
+test('streamCandidates skips https on a bare IP address, which never has a valid certificate', () => {
+  const ip4 = { uuid: 'ac49', url: 'http://79.120.39.202:8000/noiserock' };
+  assert.deepEqual(streamCandidates(ip4, 'https://relay.example'), ['https://relay.example/s/ac49']);
+  assert.deepEqual(streamCandidates(ip4, null), []);
+  const ip6 = { uuid: 'v6', url: 'http://[2001:db8::1]:8000/x' };
+  assert.deepEqual(streamCandidates(ip6, 'https://relay.example'), ['https://relay.example/s/v6']);
+  assert.deepEqual(streamCandidates(ip6, null), []);
 });
 test('shortTag prefers the first matching genre label', () => {
   assert.equal(shortTag({ tags: ['garage punk', 'indie rock', 'noise rock', 'post-punk', 'punk'] }, GENRES), 'NOISE ROCK');

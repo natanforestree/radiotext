@@ -63,10 +63,20 @@ export function httpsVariant(url) {
   return url.startsWith('http://') ? `https://${url.slice(7)}` : null;
 }
 
+// An IPv4 or bracketed IPv6 literal, as URL.hostname reports it.
+const IP_HOST = /^(?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:.]+\])$/i;
+
+function onBareIp(url) {
+  try { return IP_HOST.test(new URL(url).hostname); } catch { return false; }
+}
+
+/** URLs to try in order. https on a bare IP never has a valid certificate (and tends to hang
+ *  until the tune timeout), so such a station goes straight to the relay, or has none. */
 export function streamCandidates(station, relayBase) {
   const https = httpsVariant(station.url);
   if (!https) return [station.url];
-  return relayBase ? [https, `${relayBase}/s/${station.uuid}`] : [https];
+  const relay = relayBase ? [`${relayBase}/s/${station.uuid}`] : [];
+  return onBareIp(station.url) ? relay : [https, ...relay];
 }
 
 export function shortTag(station, genres) {

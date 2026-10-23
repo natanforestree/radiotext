@@ -1,11 +1,13 @@
 // The stream player: one <audio> element driven by a small state machine.
 //
 //   tune ──► tuning ──playing──► playing ──error/ended/stall──► retrying ──playing──► playing
-//              │ error/timeout on the last candidate                 │ backoff gives up
-//              ▼                                                     ▼
-//          unavailable                                              lost
+//    │         │ error/timeout on the last candidate                 │ backoff gives up
+//    │         ▼                                                     ▼
+//    └────► unavailable (at once when there is nothing to try)      lost
 //   stop() ──► off from any state, and so do an outside pause while playing (phone call, Siri)
 //   and a play() blocked by autoplay rules. resume() re-tunes the current station.
+// Candidates are tried in order, except that the one that last worked for a station this
+// session goes first (an https attempt that hangs costs the whole 8 s tune timeout).
 //
 // Fast flipping is the hard part, so two guards keep an old station from touching the new one:
 // - At most one timer is ever pending (`timer`): every phase change re-arms or clears it, and
@@ -41,6 +43,8 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   let inFlight = false;     // a retry attempt is loading (false while waiting out the backoff)
   let playId = 0;           // bumped by every assign, so a late play() rejection can tell it's stale
   let pausedOutside = false; // 'off' came from an outside pause, which the phone may undo itself
+  /** @type {Map<string, string>} station uuid → the candidate URL that last reached 'playing' */
+  const lastWorked = new Map();
 
   // Called last in every transition, so a throwing onChange can't leave a timer unarmed.
   const set = (kind, station = state.station) => {
@@ -99,10 +103,13 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
       tryCandidate();
       return;
     }
+    unavailable(state.station);
+  };
+  // Nothing left to try. park() also silences the previous station when there was nothing to try.
+  const unavailable = (station) => {
     park();
-    const { station } = state;
     if (httpsVariant(station.url) && !relayBase && online()) dead.add(station.uuid);
-    set('unavailable');
+    set('unavailable', station);
   };
 
   const startRetry = () => {
@@ -149,6 +156,7 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   const onPlaying = () => {
     if (state.kind === 'tuning') {
       working = candidates[index];
+      lastWorked.set(state.station.uuid, working);
     } else if (state.kind === 'retrying') {
       // Also accepted between attempts: a stalled or timed-out load that came back is live audio.
       inFlight = false;
@@ -198,8 +206,14 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     inFlight = false;
     pausedOutside = false;
     working = '';
-    candidates = streamCandidates(station, relayBase);
+    const all = streamCandidates(station, relayBase);
+    const known = lastWorked.get(station.uuid);
+    candidates = all.includes(known) ? [known, ...all.filter((u) => u !== known)] : all;
     index = 0;
+    if (!candidates.length) {
+      unavailable(station);
+      return;
+    }
     tryCandidate();
     set('tuning', station);
   }
