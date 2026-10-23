@@ -1,1 +1,1 @@
-{ "name": "radiotext", "private": true, "type": "module", "scripts": { "test": "node --test test/*.test.js" } }
+{ "name": "radiotext", "private": true, "type": "module", "scripts": { "test": "node --test --disable-warning=ExperimentalWarning test/*.test.js" } }
