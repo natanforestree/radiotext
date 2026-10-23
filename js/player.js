@@ -4,7 +4,8 @@
 //              │ error/timeout on the last candidate                 │ backoff gives up
 //              ▼                                                     ▼
 //          unavailable                                              lost
-//   stop() ──► off from any state; resume() re-tunes the current station.
+//   stop() ──► off from any state, and so do an outside pause while playing (phone call, Siri)
+//   and a play() blocked by autoplay rules. resume() re-tunes the current station.
 //
 // Fast flipping is the hard part, so two guards keep an old station from touching the new one:
 // - At most one timer is ever pending (`timer`): every phase change re-arms or clears it, and
@@ -38,6 +39,8 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   let retryStart = 0;       // Date.now() when this run of retries began
   let attempt = 0;          // retry attempts made in this run
   let inFlight = false;     // a retry attempt is loading (false while waiting out the backoff)
+  let playId = 0;           // bumped by every assign, so a late play() rejection can tell it's stale
+  let pausedOutside = false; // 'off' came from an outside pause, which the phone may undo itself
 
   // Called last in every transition, so a throwing onChange can't leave a timer unarmed.
   const set = (kind, station = state.station) => {
@@ -64,9 +67,15 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   const assign = (url) => {
     audio.src = url;
     assigned = audio.src; // browsers normalise URLs; compare against what the element reports
-    // AbortError (src changed) and NotAllowedError are expected; the timeouts cover a play() that never starts.
+    const g = gen;
+    const id = ++playId;
     const p = audio.play();
-    if (p) p.catch(() => {});
+    // AbortError (the src changed again) is expected, and the timeouts cover a play() that never
+    // starts. NotAllowedError means autoplay is blocked and only a tap can start audio, so go off
+    // now rather than show TUNING… for 8 s. A rejection from an older assign is ignored.
+    if (p) p.catch((e) => {
+      if (e?.name === 'NotAllowedError' && g === gen && id === playId) stop();
+    });
   };
   const release = () => {
     audio.pause();
@@ -123,13 +132,17 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     scheduleAttempt();
   };
 
-  // After waiting/stalled, playback must move within every STALL_MS window until 'playing' comes
-  // back. A 'stalled' that the buffer rode out (currentTime kept rising) is a false alarm.
+  // Stall watchdog, armed only while playing. 'waiting' means playback has stopped for lack of
+  // data, so it always restarts the STALL_MS window from now. 'stalled' means data stopped
+  // arriving while the buffer may play on, so it starts a window only if none is running.
+  // When a window ends, retry only if the element is unpaused and playback hasn't moved since
+  // it was armed. Otherwise the watch just ends: a pause is not a stall, and a stall the buffer
+  // rode out is over (a later 'waiting' starts a new watch).
   const watchStall = () => {
     const at = audio.currentTime;
     arm(STALL_MS, () => {
-      if (!audio.paused && audio.currentTime > at) watchStall();
-      else startRetry();
+      const moved = audio.currentTime > at;
+      if (!audio.paused && !moved) startRetry();
     });
   };
 
@@ -139,10 +152,15 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     } else if (state.kind === 'retrying') {
       // Also accepted between attempts: a stalled or timed-out load that came back is live audio.
       inFlight = false;
+    } else if (state.kind === 'off') {
+      // iOS and Android resume audio they paused once a short call ends. The src is still
+      // ours (the 30 s drop hasn't run), so the radio is simply back on.
+      if (!pausedOutside || audio.paused) return;
+      pausedOutside = false;
     } else if (state.kind !== 'playing') {
       return;
     }
-    clearTimer(); // the tune timeout, the retry wait or attempt, or the stall watchdog
+    clearTimer(); // the tune timeout, the retry wait or attempt, the stall watchdog, or the drop
     set('playing');
   };
   const onFailed = () => {
@@ -150,8 +168,19 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     else if (state.kind === 'playing') startRetry();
     else if (state.kind === 'retrying' && inFlight) attemptFailed(); // between attempts: one is already scheduled
   };
-  const onStall = () => {
+  const onWaiting = () => {
+    if (state.kind === 'playing') watchStall();
+  };
+  const onStalled = () => {
     if (state.kind === 'playing' && timer === null) watchStall();
+  };
+  // An outside pause (phone call, Siri, headphones out) turns the radio off like STOP, so PLAY and
+  // the lock screen show the truth. The player's own pauses don't count. stop(), unavailable
+  // and lost leave 'playing' before they pause. A src change happens while tuning or retrying and
+  // is followed by play(), so any pause event it queues finds the element unpaused. A stream
+  // that ends pauses with `ended` set, and the 'ended' event then retries it.
+  const onPause = () => {
+    if (state.kind === 'playing' && audio.paused && !audio.ended && !audio.error) halt(true);
   };
   const listen = (type, fn) => audio.addEventListener(type, () => {
     if (audio.src === assigned) fn();
@@ -159,13 +188,15 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   listen('playing', onPlaying);
   listen('error', onFailed);
   listen('ended', onFailed);
-  listen('waiting', onStall);
-  listen('stalled', onStall);
+  listen('waiting', onWaiting);
+  listen('stalled', onStalled);
+  listen('pause', onPause);
 
   function tune(station) {
     gen++;
     clearTimer();
     inFlight = false;
+    pausedOutside = false;
     working = '';
     candidates = streamCandidates(station, relayBase);
     index = 0;
@@ -173,15 +204,22 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     set('tuning', station);
   }
 
+  // Off, keeping src for STOP_DROP_MS. `outside` marks a pause the player didn't make.
+  function halt(outside) {
+    gen++;
+    clearTimer();
+    inFlight = false;
+    pausedOutside = outside;
+    park();
+    set('off');
+  }
+  function stop() {
+    halt(false);
+  }
+
   return {
     tune,
-    stop() {
-      gen++;
-      clearTimer();
-      inFlight = false;
-      park();
-      set('off');
-    },
+    stop,
     resume() {
       if (state.station) tune(state.station);
     },

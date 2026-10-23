@@ -107,12 +107,93 @@ test('a stream that comes back while waiting to retry is kept', (t) => {
   const n = audio.plays; audio.fire('playing');
   assert.equal(p.state.kind, 'playing'); t.mock.timers.tick(60000); assert.equal(audio.plays, n);
 });
-test('a stalled event that buffered audio rides out does not reconnect', (t) => {
+test('a stalled event that buffered audio rides out ends the watch without reconnecting', (t) => {
   const { audio, p } = setup(t);
-  p.tune(HTTPS); audio.fire('playing');
+  p.tune(HTTPS); audio.fire('playing'); const n = audio.plays;
   audio.currentTime = 100; audio.fire('stalled'); audio.currentTime = 110;
   t.mock.timers.tick(10000); assert.equal(p.state.kind, 'playing');
-  t.mock.timers.tick(10000); assert.equal(p.state.kind, 'retrying');
+  t.mock.timers.tick(120000); assert.equal(p.state.kind, 'playing'); assert.equal(audio.plays, n);
+});
+test('stalled, then the buffer plays on, then waiting: the retry starts 10 s after waiting', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing');
+  audio.currentTime = 100; audio.fire('stalled');
+  t.mock.timers.tick(4000); audio.currentTime = 104; audio.fire('waiting');
+  t.mock.timers.tick(9999); assert.equal(p.state.kind, 'playing');
+  t.mock.timers.tick(1); assert.equal(p.state.kind, 'retrying');
+});
+test('a pause during a stall watch is not a stall, so the player never plays by itself', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing');
+  audio.currentTime = 0; audio.fire('stalled'); audio.pause(); const n = audio.plays;
+  t.mock.timers.tick(10000); t.mock.timers.tick(110000); assert.equal(audio.plays, n); assert.equal(audio.paused, true);
+});
+test('an outside pause (phone call, Siri) goes off, drops after 30 s, and PLAY reconnects', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); audio.fire('waiting');
+  audio.pause(); audio.fire('pause');
+  assert.equal(p.state.kind, 'off'); assert.deepEqual(kinds, ['tuning', 'playing', 'off']);
+  const n = audio.plays; t.mock.timers.tick(29999); assert.equal(audio.src, HTTPS.url); assert.equal(audio.plays, n);
+  t.mock.timers.tick(1); assert.equal(audio.src, '');
+  p.resume(); assert.equal(audio.src, HTTPS.url); assert.equal(p.state.kind, 'tuning');
+});
+test('when the phone resumes audio it paused (a call ends), the radio is back on', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); audio.pause(); audio.fire('pause');
+  t.mock.timers.tick(5000); audio.play(); audio.fire('playing');
+  assert.equal(p.state.kind, 'playing'); assert.deepEqual(kinds, ['tuning', 'playing', 'off', 'playing']);
+  t.mock.timers.tick(60000); assert.equal(audio.src, HTTPS.url);
+  audio.fire('error'); assert.equal(p.state.kind, 'retrying');
+});
+test('after STOP, only the player turns the radio back on', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); p.stop(); audio.play(); audio.fire('playing');
+  assert.equal(p.state.kind, 'off');
+});
+test('pauses the player causes itself, and the pause before ended, are not outside pauses', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); p.stop(); audio.fire('pause');
+  t.mock.timers.tick(10000); p.resume(); audio.fire('pause'); assert.equal(p.state.kind, 'tuning');
+  audio.fire('playing'); t.mock.timers.tick(25000); assert.equal(audio.src, HTTPS.url);
+  audio.fire('error'); t.mock.timers.tick(1000); audio.fire('pause'); assert.equal(p.state.kind, 'retrying');
+  audio.fire('playing'); audio.ended = true; audio.pause(); audio.fire('pause'); audio.fire('ended');
+  assert.equal(p.state.kind, 'retrying');
+  p.tune(HTTP); t.mock.timers.tick(8000); t.mock.timers.tick(8000); audio.fire('pause'); assert.equal(p.state.kind, 'unavailable');
+});
+const blocked = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' }));
+test('a play() blocked by autoplay rules goes off at once, without marking the station dead', async (t) => {
+  const { audio, dead, kinds, p } = setup(t, { relayBase: null });
+  audio.play = blocked;
+  p.tune(HTTP); await null;
+  assert.equal(p.state.kind, 'off'); assert.deepEqual(kinds, ['tuning', 'off']);
+  t.mock.timers.tick(8000); assert.equal(p.state.kind, 'off'); assert.deepEqual(dead.added, []);
+});
+test('other play() rejections still wait for the tune timeout', async (t) => {
+  const { audio, p } = setup(t);
+  audio.play = () => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' }));
+  p.tune(HTTPS); await null; assert.equal(p.state.kind, 'tuning');
+  t.mock.timers.tick(8000); assert.equal(p.state.kind, 'unavailable');
+});
+test('a late NotAllowedError from an old tune leaves the current one alone', async (t) => {
+  const { audio, p } = setup(t);
+  const rejects = []; audio.play = () => new Promise((_, reject) => rejects.push(reject));
+  p.tune(HTTPS); p.tune(HTTP);
+  rejects[0](Object.assign(new Error('x'), { name: 'NotAllowedError' })); await null; await null;
+  assert.equal(p.state.kind, 'tuning'); assert.equal(p.state.station.uuid, 'radcap');
+});
+test('fast flips: a pending retry never touches the next station; stop then resume keeps it', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); audio.fire('error');
+  p.tune(HTTP); t.mock.timers.tick(1000);
+  assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock'); assert.equal(p.state.kind, 'tuning');
+  audio.fire('playing'); p.stop(); t.mock.timers.tick(10000); p.resume(); audio.fire('playing'); t.mock.timers.tick(25000);
+  assert.equal(audio.src, 'https://79.120.39.202:8000/noiserock'); assert.equal(p.state.kind, 'playing');
+});
+test('stop during a retry attempt ignores its late events and drops after 30 s', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); audio.fire('error'); t.mock.timers.tick(1000);
+  const n = audio.plays; p.stop(); audio.fire('error'); audio.fire('playing'); t.mock.timers.tick(200000);
+  assert.equal(p.state.kind, 'off'); assert.equal(audio.src, ''); assert.equal(audio.plays, n);
 });
 test('a station that never starts is paused, so a late connection stays silent, and dropped after 30 s', (t) => {
   const { audio, p } = setup(t);
