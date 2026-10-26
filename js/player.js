@@ -2,7 +2,7 @@
 //
 //   tune ──► tuning ──playing──► playing ──error/ended/stall──► retrying ──playing──► playing
 //    │         │ error/timeout on the last candidate                 │ backoff gives up
-//    │         ▼                                                     ▼
+//    │         ▼   (retrying instead, if the station played this session)
 //    └────► unavailable (at once when there is nothing to try)      lost
 //   stop() ──► off from any state, and so do an outside pause while playing (phone call, Siri)
 //   and a play() blocked by autoplay rules. resume() re-tunes the current station.
@@ -87,25 +87,29 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     audio.removeAttribute('src');
     audio.load();
   };
-  // Pause now and keep src for `ms` (STOP_DROP_MS by default), so lock-screen and car controls
-  // survive a short stop (ledger Ruling 1). pause() also stops a load that times out but
-  // connects later from playing.
-  const park = (ms = STOP_DROP_MS) => {
+  // Pause now and keep src for STOP_DROP_MS, so lock-screen and car controls survive a short
+  // stop (ledger Ruling 1). pause() also stops a load that times out but connects later from
+  // playing.
+  const park = () => {
     audio.pause();
-    arm(ms, release);
+    arm(STOP_DROP_MS, release);
   };
 
   const tryCandidate = () => {
     assign(candidates[index]);
     arm(TUNE_TIMEOUT_MS, candidateFailed);
   };
+  // A station that played this session is more likely up and the signal weak (a dead spot, or
+  // the minute after a call), so it keeps reconnecting like a dropped stream.
   const candidateFailed = () => {
     index++;
     if (index < candidates.length) {
       tryCandidate();
       return;
     }
-    unavailable(state.station);
+    working = lastWorked.get(state.station.uuid) ?? '';
+    if (working) startRetry();
+    else unavailable(state.station);
   };
   // Nothing left to try. park() also silences the previous station when there was nothing to try.
   const unavailable = (station) => {
@@ -222,12 +226,15 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
 
   // Off, keeping src for STOP_DROP_MS. `outside` marks a pause the player didn't make: a phone
   // call often runs past 30 s, so that keeps src for OUTSIDE_PAUSE_DROP_MS (ledger Ruling 12).
+  // The phone already paused the element then, and pausing it again would stop Safari playing it
+  // when the call ends: WebKit treats a page's pause during a call as the state to restore.
   function halt(outside) {
     gen++;
     clearTimer();
     inFlight = false;
     pausedOutside = outside;
-    park(outside ? OUTSIDE_PAUSE_DROP_MS : STOP_DROP_MS);
+    if (outside) arm(OUTSIDE_PAUSE_DROP_MS, release);
+    else park();
     set('off');
   }
   function stop() {

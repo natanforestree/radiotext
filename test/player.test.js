@@ -159,6 +159,27 @@ test('when the phone resumes audio it paused (a call ends), the radio is back on
   t.mock.timers.tick(60000); assert.equal(audio.src, HTTPS.url);
   audio.fire('error'); assert.equal(p.state.kind, 'retrying');
 });
+// Safari won't resume after a call if the page paused the element during it, so the player
+// leaves that pause to the phone.
+test('when a call ends, Safari plays the radio again', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing');
+  audio.callStarts(); assert.equal(p.state.kind, 'off');
+  t.mock.timers.tick(45000); audio.callEnds();
+  assert.equal(p.state.kind, 'playing'); assert.deepEqual(kinds, ['tuning', 'playing', 'off', 'playing']);
+});
+test('STOP during a call keeps the radio off after it', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing');
+  audio.callStarts(); p.stop(); audio.callEnds();
+  assert.equal(p.state.kind, 'off'); assert.equal(audio.paused, true);
+});
+test('a call longer than 10 minutes leaves the radio off', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing');
+  audio.callStarts(); t.mock.timers.tick(600000); audio.callEnds();
+  assert.equal(p.state.kind, 'off'); assert.equal(audio.src, '');
+});
 test('after STOP, only the player turns the radio back on', (t) => {
   const { audio, p } = setup(t);
   p.tune(HTTPS); audio.fire('playing'); p.stop(); audio.play(); audio.fire('playing');
@@ -208,6 +229,24 @@ test('stop during a retry attempt ignores its late events and drops after 30 s',
   p.tune(HTTPS); audio.fire('playing'); audio.fire('error'); t.mock.timers.tick(1000);
   const n = audio.plays; p.stop(); audio.fire('error'); audio.fire('playing'); t.mock.timers.tick(200000);
   assert.equal(p.state.kind, 'off'); assert.equal(audio.src, ''); assert.equal(audio.plays, n);
+});
+// A station that played this session and now won't start is more likely a weak signal (a dead
+// spot, or the minute after a call) than a dead station, so it keeps trying like a dropped stream.
+test('a station that played this session retries instead of going unavailable', (t) => {
+  const { audio, kinds, p } = setup(t);
+  p.tune(HTTPS); audio.fire('playing'); p.stop();
+  p.resume(); t.mock.timers.tick(8000);
+  assert.equal(p.state.kind, 'retrying'); assert.deepEqual(kinds, ['tuning', 'playing', 'off', 'tuning', 'retrying']);
+  const n = audio.plays; t.mock.timers.tick(1000); assert.equal(audio.plays, n + 1); assert.equal(audio.src, HTTPS.url);
+  audio.fire('playing'); assert.equal(p.state.kind, 'playing');
+});
+test('the retry after a failed re-tune gives up at 2 minutes', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTP); audio.fire('error'); audio.fire('playing'); // played through the relay
+  p.tune(HTTP); audio.fire('error'); audio.fire('error');
+  assert.equal(p.state.kind, 'retrying');
+  t.mock.timers.tick(1000); assert.equal(audio.src, RELAY + '/s/cia');
+  t.mock.timers.tick(150000); assert.equal(p.state.kind, 'lost'); assert.equal(audio.src, ''); // the last attempt ends past 2 min
 });
 test('a station that never starts is paused, so a late connection stays silent, and dropped after 30 s', (t) => {
   const { audio, p } = setup(t);
