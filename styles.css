@@ -101,7 +101,7 @@ p, h1 { margin: 0; font: inherit; }
 
 #page { flex: 1 0 auto; padding-bottom: 0.6em; }
 
-/* ---- Title band and mosaic stripe ---- */
+/* ---- Title band ---- */
 
 .band {
   display: flex;
@@ -116,8 +116,6 @@ p, h1 { margin: 0; font: inherit; }
 }
 .band h1 { text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .mast svg { display: block; height: 2.4em; width: auto; }
-.stripe { padding-top: 0.3em; }
-.stripe svg { display: block; width: 100%; height: auto; }
 
 /* Mosaic fills arrive as fill="var(--x)". Repeat them in CSS for engines that skip var() in SVG attributes. */
 svg [fill="var(--black)"] { fill: var(--black); }

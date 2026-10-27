@@ -2,7 +2,7 @@
 import { displayName, shortTag } from './stations.js';
 import { savedPage, paginate } from './pages.js';
 import { GENRES, PER_PAGE } from './config.js';
-import { mosaicSvg, TITLE_STRIPE, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
+import { mosaicSvg, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
 import { clockTime } from './diag.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -25,11 +25,10 @@ const STATES = {
 
 const tagLabel = (station) => escapeHtml(shortTag(station, GENRES));
 
-/** The page title band (blue, yellow double-height) and the mosaic stripe under it. */
+/** The page title band: blue, with a yellow double-height title. */
 function masthead(title, { mast = false } = {}) {
   const art = mast ? `<div class="mast">${mosaicSvg(ANTENNA, MOSAIC_COLORS)}</div>` : '';
-  return `<div class="band"><h1 class="dh">${escapeHtml(title)}</h1>${art}</div>`
-    + `<div class="stripe">${mosaicSvg(TITLE_STRIPE, MOSAIC_COLORS)}</div>`;
+  return `<div class="band"><h1 class="dh">${escapeHtml(title)}</h1>${art}</div>`;
 }
 
 function starButton(station, saved) {

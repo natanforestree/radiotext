@@ -7,13 +7,6 @@ export const MOSAIC_COLORS = {
   B: 'var(--blue)', M: 'var(--magenta)', C: 'var(--cyan)', W: 'var(--white)',
 };
 
-/** A tuning-dial scale under the blue title band: ticks on a baseline, with a red needle. */
-export const TITLE_STRIPE = [
-  '.W.......W.R.....W.......W......',
-  '.W...W...W.R.W...W...W...W...W..',
-  'CCCCCCCCCCCRCCCCCCCCCCCCCCCCCCCC',
-];
-
 /** A lattice radio mast with a warning light and signal arcs either side. */
 export const ANTENNA = [
   '.........R.........',

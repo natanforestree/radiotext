@@ -91,7 +91,7 @@ test('genre, genres and search pages carry the status line under the title', () 
     renderSearch({ query: 'noise', list, live })];
   for (const html of pages) {
     const at = html.indexOf('<p class="status" id="status">');
-    assert.ok(at > html.indexOf('class="stripe"') && html.includes('NO SIGNAL — RETRYING'));
+    assert.ok(at > html.indexOf('class="band"') && html.includes('NO SIGNAL — RETRYING'));
     assert.ok(at < Math.min(...['<ul', '<form', '<p class="msg'].map((t) => html.indexOf(t)).filter((i) => i >= 0)));
   }
   assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: PRESETS, currentUuid: null }).includes('id="status"'));

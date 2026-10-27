@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mosaicSvg, TITLE_STRIPE, ANTENNA, MOSAIC_COLORS } from '../js/mosaic.js';
+import { mosaicSvg, ANTENNA, MOSAIC_COLORS } from '../js/mosaic.js';
 
 test('one rect per run, transparent dots, exact viewBox', () => {
   const svg = mosaicSvg(['RR.', '.BB'], { R: 'var(--red)', B: 'var(--blue)' });
@@ -10,7 +10,7 @@ test('one rect per run, transparent dots, exact viewBox', () => {
   assert.ok(svg.includes('x="1" y="1" width="2" height="1" fill="var(--blue)"'));
 });
 test('shipped art fits 32x12, has even rows and only Teletext colours', () => {
-  for (const art of [TITLE_STRIPE, ANTENNA]) {
+  for (const art of [ANTENNA]) {
     assert.ok(art.length >= 1 && art.length <= 12);
     for (const row of art) {
       assert.equal(row.length, art[0].length);
