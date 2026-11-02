@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag } from '../js/render.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad } from '../js/render.js';
 import { GENRES, SECTIONS } from '../js/config.js';
 import { PRESETS } from '../js/config.js';
 
@@ -55,8 +55,10 @@ test('search keeps the escaped query in the box', () => {
 test('fastext labels follow page and play state', () => {
   const home = renderFastext({ page: 100, playing: false });
   for (const l of ['◀ PREV', '▶ PLAY', 'NEXT ▶', 'BROWSE']) assert.ok(home.includes(l));
-  const other = renderFastext({ page: 212, playing: true });
+  const other = renderFastext({ page: 300, playing: true, up: 100 });
   assert.ok(other.includes('■ STOP') && other.includes('HOME'));
+  const genre = renderFastext({ page: 252, playing: false, up: 202 });
+  assert.ok(genre.includes('>INDEX<') && genre.includes('aria-label="Back to page 202"'));
   for (const k of ['prev', 'play', 'next', 'browse']) assert.ok(home.includes(`data-key="${k}"`));
 });
 
@@ -110,4 +112,20 @@ test('a genre index page lists only its own genres, under its title', () => {
   assert.deepEqual(pages, Array.from({ length: 10 }, (_, i) => 250 + i));
   assert.ok(html.includes('<h1 class="dh">ELECTRONIC</h1>'));
   assert.ok(renderSection({ section: SECTIONS[3], genres: GENRES, live: {} }).includes('>R&amp;B<'));
+});
+test('the header page number is a key that opens the keypad', () => {
+  const shut = renderHeader(212, new Date(2026, 10, 2, 8, 30));
+  assert.match(shut, /^<button class="pg" data-pad [^>]*aria-expanded="false">P212<\/button>/);
+  const open = renderHeader('2__', new Date(2026, 10, 2, 8, 30), { padOpen: true });
+  assert.match(open, /^<button class="pg on" data-pad [^>]*aria-expanded="true">P2__<\/button>/);
+});
+test('the keypad has 0-9, DEL and CLOSE, and shows the number so far or a miss', () => {
+  assert.equal(renderPad({ open: false }), '<div class="pad" id="pad" hidden></div>');
+  const html = renderPad({ open: true, digits: '25' });
+  const digits = [...html.matchAll(/data-digit="(\d)"/g)].map((m) => m[1]);
+  assert.deepEqual(digits, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+  assert.ok(html.includes('data-padkey="del"') && html.includes('data-padkey="close"'));
+  assert.ok(html.includes('P25_') && !html.includes(' hidden'));
+  const miss = renderPad({ open: true, digits: '', note: 'NO PAGE 248' });
+  assert.ok(miss.includes('<span class="lamp bad">NO PAGE 248</span>') && !miss.includes('P___'));
 });

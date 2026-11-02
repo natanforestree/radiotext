@@ -4,12 +4,12 @@ import { RELAY_BASE, PRESETS, GENRES, SECTIONS, PER_PAGE, POLL_MS, STATIC_ENABLE
 import { prepareList, displayName } from './stations.js';
 import { safeStorage, createSaved, createDead } from './saved.js';
 import { createFlip } from './fliplist.js';
-import { route, paginate } from './pages.js';
+import { route, paginate, parentPage } from './pages.js';
 import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag } from './render.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
 import { createDiag, diagText } from './diag.js';
 
@@ -18,6 +18,7 @@ import { createDiag, diagText } from './diag.js';
 const hdr = document.getElementById('hdr');
 const pageEl = document.getElementById('page');
 const keysEl = document.getElementById('fastext');
+const padEl = document.getElementById('pad');
 const audio = /** @type {HTMLAudioElement} */ (document.getElementById('radio'));
 
 // ---- Services ----
@@ -136,17 +137,35 @@ function patchNode(o, n) {
   else oldKids.forEach((c, i) => patchNode(c, newKids[i]));
 }
 
-// Digits typed so far, shown as P2__ in the header.
+// Digits typed so far, shown as P2__ in the header (and on the keypad while it's open).
 let digits = '';
+let padOpen = false;
+/** Set when a number typed on the keypad had no page, until the next key. */
+let padNote = '';
+// Patched like the ON AIR block: the page number is a button, and the clock ticks beside it.
 function renderTop() {
-  hdr.innerHTML = renderHeader(digits ? digits.padEnd(3, '_') : app.page, new Date());
+  const t = document.createElement('template');
+  t.innerHTML = renderHeader(digits ? digits.padEnd(3, '_') : app.page, new Date(), { padOpen });
+  const fresh = [...t.content.childNodes];
+  const old = [...hdr.childNodes];
+  if (old.length !== fresh.length) hdr.replaceChildren(...fresh);
+  else old.forEach((c, i) => patchNode(c, fresh[i]));
 }
+
+/** The keypad stands in for the fastext keys while it's open. */
+function renderPadNow() {
+  patchHtml(padEl, renderPad({ open: padOpen, digits, note: padNote }));
+  keysEl.hidden = padOpen;
+}
+
+/** The cyan key's page away from home: one level up. */
+const upFrom = (n) => parentPage(n, { genres: GENRES, sections: SECTIONS });
 
 // The keys are patched in place, never replaced: a state change landing mid-press (NEXT, then
 // 'playing' arrives) would otherwise swap the button under the finger and lose the tap.
 function renderKeys() {
   const t = document.createElement('template');
-  t.innerHTML = renderFastext({ page: app.page, playing: isOn() });
+  t.innerHTML = renderFastext({ page: app.page, playing: isOn(), up: upFrom(app.page) });
   const fresh = [...t.content.children];
   const old = [...keysEl.children];
   if (old.length !== fresh.length) {
@@ -270,8 +289,12 @@ function pollSong() {
 
 // ---- Pages and lists ----
 
-/** Goes to page n. A saved-station number (101–199) tunes that station and shows home. */
-function goTo(n) {
+/**
+ * Goes to page n. A saved-station number (101–199) tunes that station and shows home. A new
+ * page goes into the browser's history, so back (a swipe on iPhone) returns to the last one;
+ * `push: false` when back or forward brought us here.
+ */
+function goTo(n, { push = true } = {}) {
   const r = route(n, { savedCount: saved.list().length, genres: GENRES, sections: SECTIONS });
   if (!r) return false;
   let page = n;
@@ -284,7 +307,11 @@ function goTo(n) {
   if (page !== app.page) {
     app.page = page;
     app.subpage = 1;
+    if (push) {
+      try { history.pushState({ page }, ''); } catch { /* no history here */ }
+    }
   }
+  if (padOpen) setPad(false);
   if (r.kind === 'genre') loadGenre(r.genre);
   render();
   window.scrollTo(0, 0);
@@ -425,7 +452,7 @@ function pressKey(key) {
   if (key === 'prev') flipBy(-1);
   else if (key === 'next') flipBy(1);
   else if (key === 'play') togglePlay();
-  else if (key === 'browse') goTo(app.page === 100 ? 200 : 100);
+  else if (key === 'browse') goTo(app.page === 100 ? 200 : upFrom(app.page));
 }
 
 function onClick(e) {
@@ -441,6 +468,16 @@ function onClick(e) {
 }
 pageEl.addEventListener('click', onClick);
 keysEl.addEventListener('click', onClick);
+hdr.addEventListener('click', (e) => {
+  if (e.target instanceof Element && e.target.closest('[data-pad]')) setPad(!padOpen);
+});
+padEl.addEventListener('click', (e) => {
+  const el = e.target instanceof Element ? e.target.closest('button') : null;
+  if (!el) return;
+  if (el.dataset.digit) typeDigit(el.dataset.digit);
+  else if (el.dataset.padkey === 'del') deleteDigit();
+  else if (el.dataset.padkey === 'close') setPad(false);
+});
 
 pageEl.addEventListener('submit', (e) => {
   const form = e.target instanceof Element ? e.target.closest('form[data-search]') : null;
@@ -456,25 +493,49 @@ function clearDigits() {
   clearTimeout(digitTimer);
   digits = '';
 }
-/** A three-digit page number, like a Teletext remote. A number with no page restores the header. */
+/**
+ * A three-digit page number, like a Teletext remote. A number with no page restores the header;
+ * on the keypad it also says so. Keys typed on a keyboard give up after 3 s; the keypad waits.
+ */
 function typeDigit(d) {
   clearTimeout(digitTimer);
+  padNote = '';
   digits += d;
   if (digits.length < 3) {
-    digitTimer = setTimeout(() => { clearDigits(); renderTop(); }, 3000);
+    if (!padOpen) digitTimer = setTimeout(() => { clearDigits(); renderTop(); }, 3000);
     renderTop();
+    renderPadNow();
     return;
   }
   const n = Number(digits);
   clearDigits();
-  if (!goTo(n)) renderTop();
+  if (goTo(n)) return; // goTo closes the keypad
+  if (padOpen) padNote = `NO PAGE ${n}`;
+  renderTop();
+  renderPadNow();
+}
+
+function deleteDigit() {
+  digits = digits.slice(0, -1);
+  padNote = '';
+  renderTop();
+  renderPadNow();
+}
+
+/** Opens or closes the keypad, starting from an empty number either way. */
+function setPad(open) {
+  padOpen = open;
+  padNote = '';
+  clearDigits();
+  renderTop();
+  renderPadNow();
 }
 
 const KEYS = {
   ArrowLeft: () => flipBy(-1),
   ArrowRight: () => flipBy(1),
   ' ': togglePlay,
-  Escape: () => { clearDigits(); goTo(100); },
+  Escape: () => { if (padOpen) setPad(false); else { clearDigits(); goTo(100); } },
 };
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -494,6 +555,15 @@ bindMediaSession(loggedSession(navigator.mediaSession, (action) => diag.note('re
   stop: () => player.stop(),
   next: () => flipBy(1),
   prev: () => flipBy(-1),
+});
+// The app opens on home whatever the history says; back and forward then walk the pages seen.
+try {
+  history.scrollRestoration = 'manual'; // goTo puts each page at its top
+  history.replaceState({ page: app.page }, '');
+} catch { /* no history here */ }
+addEventListener('popstate', (e) => {
+  const n = Number(e.state?.page);
+  if (n) goTo(n, { push: false });
 });
 render();
 setInterval(renderTop, 15000);

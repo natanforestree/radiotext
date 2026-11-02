@@ -44,9 +44,28 @@ function indexRow({ n, label, tag, attrs, cur = false }) {
     + `<span class="end"><span class="lead" aria-hidden="true"></span><span class="t">${tag}</span></span></span></button></li>`;
 }
 
-export function renderHeader(page, now) {
-  return `<span class="pg">P${escapeHtml(page)}</span><span class="nm">RADIOTEXT</span>`
+/** The header row. The page number is a button: it opens the keypad for typing a page number. */
+export function renderHeader(page, now, { padOpen = false } = {}) {
+  return `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
+    + `P${escapeHtml(page)}</button><span class="nm">RADIOTEXT</span>`
     + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`;
+}
+
+/**
+ * The page-number keypad, in place of the fastext keys while it's open: 0-9 like a Teletext
+ * remote, DEL and CLOSE, and above them the number so far. `note` says a number had no page.
+ */
+export function renderPad({ open, digits = '', note = '' }) {
+  if (!open) return '<div class="pad" id="pad" hidden></div>';
+  const show = note ? `<span class="lamp bad">${escapeHtml(note)}</span>`
+    : `<span class="dh">P${escapeHtml(digits.padEnd(3, '_'))}</span>`;
+  const digit = (d) => `<button class="pk" data-digit="${d}"><span class="dh">${d}</span></button>`;
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit).join('')
+    + '<button class="pk op" data-padkey="close" aria-label="Close the keypad"><span class="dh">CLOSE</span></button>'
+    + digit('0')
+    + '<button class="pk op" data-padkey="del" aria-label="Delete a digit"><span class="dh">DEL</span></button>';
+  return `<div class="pad" id="pad" role="group" aria-label="Page number">`
+    + `<p class="pad-show" aria-live="polite">${show}</p><div class="pad-keys">${keys}</div></div>`;
 }
 
 /**
@@ -168,12 +187,15 @@ export function renderDiag(entries, live) {
     + (rows ? `<ol class="diag">${rows}</ol>` : '<p class="msg">NOTHING LOGGED YET</p>');
 }
 
-export function renderFastext({ page, playing }) {
+/** The four fastext keys. Cyan is BROWSE on home; elsewhere it goes up to `up`: INDEX when
+ *  that's a genre index, HOME when it's home. */
+export function renderFastext({ page, playing, up = 100 }) {
   const key = (cls, k, label, aria) =>
     `<button class="fk ${cls}" data-key="${k}" aria-label="${aria}"><span class="dh">${label}</span></button>`;
-  const home = Number(page) === 100;
+  const [label, aria] = Number(page) === 100 ? ['BROWSE', 'Browse genres']
+    : up === 100 ? ['HOME', 'Home'] : ['INDEX', `Back to page ${up}`];
   return key('red', 'prev', '◀ PREV', 'Previous station')
     + key('green', 'play', playing ? '■ STOP' : '▶ PLAY', playing ? 'Stop' : 'Play')
     + key('yellow', 'next', 'NEXT ▶', 'Next station')
-    + key('cyan', 'browse', home ? 'BROWSE' : 'HOME', home ? 'Browse genres' : 'Home');
+    + key('cyan', 'browse', label, aria);
 }

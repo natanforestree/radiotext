@@ -19,6 +19,21 @@ export function route(n, { savedCount, genres, sections = [] }) {
   return genre ? { kind: 'genre', genre } : null;
 }
 
+/**
+ * One level up, where the cyan key goes away from home: a genre page's index (200 for the
+ * underground genres), 200 from the other genre indexes, and home from anything else.
+ * @param {number} n
+ * @param {{genres: import('./config.js').Genre[], sections: import('./config.js').Section[]}} ctx
+ */
+export function parentPage(n, { genres, sections }) {
+  if (genres.some((g) => g.page === n)) {
+    const section = sections.find((s) => n >= s.from && n <= s.to);
+    if (section) return section.page;
+  }
+  if (n !== 200 && sections.some((s) => s.page === n)) return 200;
+  return 100;
+}
+
 /** The genres a section's index page lists: those numbered from..to, in page order. */
 export function genresIn(section, genres) {
   return genres.filter((g) => g.page >= section.from && g.page <= section.to).sort((a, b) => a.page - b.page);

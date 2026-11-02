@@ -24,6 +24,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body { margin: 0; background: var(--black); }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -48,7 +49,7 @@ body {
 }
 
 /* Bedstead's cell is 0.6em wide and 1em tall. Size the type so --cols cells fill the screen. */
-#hdr, #page, #fastext {
+#hdr, #page, #pad, #fastext {
   font-size: calc((min(100vw, 480px) - 2 * var(--pad)) / (var(--cols) * 0.6));
   font-size: calc((100cqi - 2 * var(--pad)) / (var(--cols) * 0.6));
 }
@@ -98,6 +99,17 @@ p, h1, h2 { margin: 0; font: inherit; }
   white-space: nowrap;
 }
 #hdr .nm { color: var(--yellow); }
+
+/* The page number is a key: tap it to type a page. Its tap area is bigger than its four cells. */
+#hdr .pg {
+  position: relative;
+  margin-left: -0.3em;
+  padding: 0 0.3em;
+  background: var(--blue);
+  color: var(--white);
+}
+#hdr .pg::after { content: ""; position: absolute; inset: -0.5em -0.6em; }
+#hdr .pg.on, #hdr .pg:active { background: var(--white); color: var(--blue); }
 
 #page { flex: 1 0 auto; padding-bottom: 0.6em; }
 
@@ -334,6 +346,35 @@ svg [fill="var(--white)"] { fill: var(--white); }
 .diag li { padding: 0.15em 0; }
 .diag .tm { color: var(--cyan); }
 .diag .ev { color: var(--yellow); }
+
+/* ---- Page-number keypad: in place of the fastext keys while it's open ---- */
+
+.pad {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+  background: var(--black);
+}
+.pad-show {
+  display: flex;
+  align-items: center;
+  min-height: 2.8em;
+  padding: 0 var(--pad);
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.pad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.pk {
+  height: clamp(56px, 2.8em, 72px);
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: var(--white);
+  white-space: nowrap;
+}
+.pk.op { color: var(--yellow); }
+.pk:active { background: var(--white); color: var(--blue); }
 
 /* ---- Fastext keys: 2x2, pinned to the bottom ---- */
 
