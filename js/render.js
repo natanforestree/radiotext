@@ -1,7 +1,7 @@
 // HTML string renderers for the Teletext pages. Every API-derived string goes through escapeHtml.
 import { displayName, shortTag } from './stations.js';
-import { savedPage, paginate } from './pages.js';
-import { GENRES, PER_PAGE } from './config.js';
+import { savedPage, paginate, genresIn } from './pages.js';
+import { GENRES, SECTIONS, PER_PAGE } from './config.js';
 import { mosaicSvg, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
 import { clockTime } from './diag.js';
 
@@ -97,11 +97,27 @@ export function renderHome({ onAir, saved, currentUuid }) {
   return masthead('RADIO', { mast: true }) + renderOnAir(onAir) + list + `<ul class="idx links">${links}</ul>`;
 }
 
-export function renderGenres(genres, live) {
-  const rows = genres.map((g) => indexRow({
-    n: g.page, label: escapeHtml(g.label), tag: '»', attrs: `data-page="${g.page}"`,
+/** Index rows that each open a page: genre pages, or the section index pages. */
+function pageRows(items) {
+  const rows = items.map((p) => indexRow({
+    n: p.page, label: escapeHtml(p.label), tag: '»', attrs: `data-page="${p.page}"`,
   })).join('');
-  return masthead('GENRES') + renderStatus(live) + `<ul class="idx genres">${rows}</ul>`;
+  return `<ul class="idx genres">${rows}</ul>`;
+}
+
+const heading = (text) => `<h2 class="sec">${escapeHtml(text)}</h2>`;
+
+/** Page 200: the first section's genres, then the other sections' index pages. */
+export function renderGenres(genres, live, sections = SECTIONS) {
+  const [first, ...more] = sections;
+  return masthead('GENRES') + renderStatus(live)
+    + heading(first.label) + pageRows(genresIn(first, genres))
+    + (more.length ? heading('MORE GENRES') + pageRows(more) : '');
+}
+
+/** Pages 201-206: one section's genres. */
+export function renderSection({ section, genres, live }) {
+  return masthead(section.label) + renderStatus(live) + pageRows(genresIn(section, genres));
 }
 
 function stationRow(s, { savedUuids, currentUuid, from }) {

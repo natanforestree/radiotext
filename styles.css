@@ -76,7 +76,7 @@ button:focus-visible, input:focus-visible {
 }
 
 ul { list-style: none; margin: 0; padding: 0; }
-p, h1 { margin: 0; font: inherit; }
+p, h1, h2 { margin: 0; font: inherit; }
 
 /* Double height: Teletext stretches the glyphs to two rows; the bottom margin keeps the second row. */
 .dh {
@@ -206,6 +206,17 @@ svg [fill="var(--white)"] { fill: var(--white); }
 .row .t { flex: none; color: var(--magenta); }
 .links .t, .genres .t { color: var(--cyan); }
 .genres li:nth-child(even) .nm { color: var(--cyan); }
+
+/* Headings on the genre index (UNDERGROUND, MORE GENRES): one row, blue on cyan. */
+.sec {
+  margin-top: 0.6em;
+  padding: 0.25em var(--pad);
+  background: var(--cyan);
+  color: var(--blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .row:active { background: var(--blue); }
 @media (hover: hover) { .row:hover { background: var(--blue); } }

@@ -76,6 +76,13 @@ test('shortTag prefers the first matching genre label', () => {
   assert.equal(shortTag({ tags: ['black metal', 'doom metal', 'post-punk', 'progressive rock', 'sludge'] }, GENRES), 'SLUDGE');
   assert.equal(shortTag({ tags: ['jazz'] }, GENRES), 'JAZZ');
   assert.equal(shortTag({ tags: [] }, GENRES), '');
+  assert.equal(shortTag({ tags: ['field recordings'] }, GENRES), 'FIELD RECORDINGS');
+});
+test('shortTag passes over broad genres while a narrower one matches', () => {
+  assert.equal(shortTag({ tags: ['rock', 'classic rock'] }, GENRES), 'CLASSIC ROCK');
+  assert.equal(shortTag({ tags: ['electronic', 'techno'] }, GENRES), 'TECHNO');
+  assert.equal(shortTag({ tags: ['jazz', 'free jazz'] }, GENRES), 'FREE JAZZ');
+  assert.equal(shortTag({ tags: ['pop', 'rock'] }, GENRES), 'ROCK');
 });
 test('prepareList filters, dedupes and sorts by votes', () => {
   const noise = GENRES.find((g) => g.page === 211);

@@ -79,11 +79,11 @@ export function streamCandidates(station, relayBase) {
   return onBareIp(station.url) ? relay : [https, ...relay];
 }
 
+/** The first genre that matches, skipping broad ones (ROCK, POP…) while a narrower one does. */
 export function shortTag(station, genres) {
-  for (const g of genres) {
-    if (g.tags.some((t) => station.tags.includes(t))) return g.label;
-  }
-  return (station.tags[0] ?? '').toUpperCase();
+  const fits = (g) => g.tags.some((t) => station.tags.includes(t));
+  const g = genres.find((x) => !x.broad && fits(x)) ?? genres.find((x) => x.broad && fits(x));
+  return g ? g.label : (station.tags[0] ?? '').toUpperCase();
 }
 
 export function prepareList(raws, { canPlay, dead, genre }) {

@@ -1,6 +1,6 @@
 // Radiotext: wires the pages, the fastext keys, the keyboard and the lock screen to the player.
 // Nothing plays on load: browsers need a tap (PLAY or a station row) before audio can start.
-import { RELAY_BASE, PRESETS, GENRES, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
+import { RELAY_BASE, PRESETS, GENRES, SECTIONS, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
 import { prepareList, displayName } from './stations.js';
 import { safeStorage, createSaved, createDead } from './saved.js';
 import { createFlip } from './fliplist.js';
@@ -9,7 +9,7 @@ import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderSearch, renderFastext, renderDiag } from './render.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
 import { createDiag, diagText } from './diag.js';
 
@@ -64,9 +64,10 @@ function pageHtml() {
   const list = saved.list();
   const station = shown();
   const currentUuid = station?.uuid ?? null;
-  const r = route(app.page, { savedCount: list.length, genres: GENRES });
+  const r = route(app.page, { savedCount: list.length, genres: GENRES, sections: SECTIONS });
   const live = liveArgs();
   if (r?.kind === 'genres') return renderGenres(GENRES, live);
+  if (r?.kind === 'section') return renderSection({ section: r.section, genres: GENRES, live });
   if (r?.kind === 'diag') return renderDiag(diag.list(), live);
   if (r?.kind === 'genre' || r?.kind === 'search') {
     const l = app.lists.get(app.page);
@@ -271,7 +272,7 @@ function pollSong() {
 
 /** Goes to page n. A saved-station number (101–199) tunes that station and shows home. */
 function goTo(n) {
-  const r = route(n, { savedCount: saved.list().length, genres: GENRES });
+  const r = route(n, { savedCount: saved.list().length, genres: GENRES, sections: SECTIONS });
   if (!r) return false;
   let page = n;
   if (r.kind === 'saved') {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderList, renderFastext, renderSearch, renderDiag } from '../js/render.js';
-import { GENRES } from '../js/config.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag } from '../js/render.js';
+import { GENRES, SECTIONS } from '../js/config.js';
 import { PRESETS } from '../js/config.js';
 
 test('escapeHtml escapes markup characters', () => {
@@ -88,11 +88,26 @@ test('genre, genres and search pages carry the status line under the title', () 
   const live = { station: PRESETS[2], kind: 'retrying', song: null };
   const list = { stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: '210', status: 'loading' };
   const pages = [renderList({ page: 210, title: 'NOISE ROCK', ...list, live }), renderGenres(GENRES, live),
-    renderSearch({ query: 'noise', list, live })];
+    renderSection({ section: SECTIONS[1], genres: GENRES, live }), renderSearch({ query: 'noise', list, live })];
   for (const html of pages) {
     const at = html.indexOf('<p class="status" id="status">');
     assert.ok(at > html.indexOf('class="band"') && html.includes('NO SIGNAL — RETRYING'));
     assert.ok(at < Math.min(...['<ul', '<form', '<p class="msg'].map((t) => html.indexOf(t)).filter((i) => i >= 0)));
   }
   assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: PRESETS, currentUuid: null }).includes('id="status"'));
+});
+test('page 200 lists the underground genres, then links to the other genre indexes', () => {
+  const html = renderGenres(GENRES, {});
+  const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.deepEqual(pages, [...Array.from({ length: 20 }, (_, i) => 210 + i), 201, 202, 203, 204, 205, 206]);
+  assert.ok(html.indexOf('<h2 class="sec">UNDERGROUND</h2>') < html.indexOf('data-page="210"'));
+  assert.ok(html.indexOf('<h2 class="sec">MORE GENRES</h2>') < html.indexOf('data-page="201"'));
+  assert.ok(html.includes('JAZZ, SOUL &amp; HIP HOP'));
+});
+test('a genre index page lists only its own genres, under its title', () => {
+  const html = renderSection({ section: SECTIONS[2], genres: GENRES, live: {} });
+  const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.deepEqual(pages, Array.from({ length: 10 }, (_, i) => 250 + i));
+  assert.ok(html.includes('<h1 class="dh">ELECTRONIC</h1>'));
+  assert.ok(renderSection({ section: SECTIONS[3], genres: GENRES, live: {} }).includes('>R&amp;B<'));
 });
