@@ -107,20 +107,22 @@ test('genre, genres and search pages carry the status line under the title', () 
   }
   assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: STATIONS, currentUuid: null }).includes('id="status"'));
 });
-test('page 200 lists the underground genres, then links to the other genre indexes', () => {
-  const html = renderGenres(GENRES, {});
+test('page 200 lists the popular genres, then links to every genre index', () => {
+  const html = renderGenres(GENRES, {}, SECTIONS, [230, 250, 290]);
   const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
-  assert.deepEqual(pages, [...Array.from({ length: 20 }, (_, i) => 210 + i), 201, 202, 203, 204, 205, 206]);
-  assert.ok(html.indexOf('<h2 class="sec">UNDERGROUND</h2>') < html.indexOf('data-page="210"'));
-  assert.ok(html.indexOf('<h2 class="sec">MORE GENRES</h2>') < html.indexOf('data-page="201"'));
-  assert.ok(html.includes('JAZZ, SOUL &amp; HIP HOP'));
+  assert.deepEqual(pages, [230, 250, 290, 201, 202, 203, 204, 205, 206, 207]);
+  assert.ok(html.indexOf('<h2 class="sec">POPULAR</h2>') < html.indexOf('data-page="230"'));
+  assert.ok(html.indexOf('<h2 class="sec">ALL GENRES</h2>') < html.indexOf('data-page="201"'));
+  assert.ok(html.includes('JAZZ, SOUL &amp; HIP HOP') && html.includes('>UNDERGROUND<'));
 });
 test('a genre index page lists only its own genres, under its title', () => {
-  const html = renderSection({ section: SECTIONS[2], genres: GENRES, live: {} });
+  const html = renderSection({ section: SECTIONS[1], genres: GENRES, live: {} });
   const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
-  assert.deepEqual(pages, Array.from({ length: 10 }, (_, i) => 250 + i));
-  assert.ok(html.includes('<h1 class="dh">ELECTRONIC</h1>'));
-  assert.ok(renderSection({ section: SECTIONS[3], genres: GENRES, live: {} }).includes('>R&amp;B<'));
+  assert.deepEqual(pages, Array.from({ length: 12 }, (_, i) => 248 + i));
+  assert.ok(html.includes('<h1 class="dh">ELECTRONIC &amp; DANCE</h1>'));
+  assert.ok(renderSection({ section: SECTIONS[2], genres: GENRES, live: {} }).includes('>R&amp;B<'));
+  const underground = renderSection({ section: SECTIONS[6], genres: GENRES, live: {} });
+  assert.deepEqual([...underground.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1])), Array.from({ length: 20 }, (_, i) => 210 + i));
 });
 test('the header page number is a key that opens the keypad', () => {
   const shut = renderHeader(212, new Date(2026, 10, 2, 8, 30));

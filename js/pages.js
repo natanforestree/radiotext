@@ -1,4 +1,4 @@
-// Page numbers: 100 home, 101-199 saved, 200 genres, 201-206 more genre indexes,
+// Page numbers: 100 home, 101-199 saved, 200 genres, 201-207 genre indexes,
 // 210-299 genre pages, 300 search, 999 engineering log.
 
 export const savedPage = (i) => 101 + i;
@@ -20,8 +20,8 @@ export function route(n, { savedCount, genres, sections = [] }) {
 }
 
 /**
- * One level up, where the cyan key goes away from home: a genre page's index (200 for the
- * underground genres), 200 from the other genre indexes, and home from anything else.
+ * One level up, where the cyan key goes away from home: a genre page's index, 200 from the
+ * genre indexes, and home from anything else.
  * @param {number} n
  * @param {{genres: import('./config.js').Genre[], sections: import('./config.js').Section[]}} ctx
  */

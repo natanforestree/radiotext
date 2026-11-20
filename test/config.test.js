@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, RELAY_BASE } from '../js/config.js';
+import { PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, FEATURED, RELAY_BASE } from '../js/config.js';
 
 test('the only preset is Fluid Radio; the old ones are retired', () => {
   assert.deepEqual(PRESETS.map((s) => s.uuid), ['014cd228-0e4d-46a9-b5be-08a0f6607f03']);
@@ -20,8 +20,14 @@ test('genre pages are unique, rising, within 210..299, with labels and tags', ()
     assert.ok(g.label.length <= 24, `${g.label} fits an index row beside its page number`);
   }
 });
-test('every genre page sits in exactly one section; sections are 200..206', () => {
-  assert.deepEqual(SECTIONS.map((s) => s.page), [200, 201, 202, 203, 204, 205, 206]);
+test('page 200 features genre pages from every section but the underground, in page order', () => {
+  const pages = FEATURED.map((n) => GENRES.find((g) => g.page === n)?.page);
+  assert.deepEqual(pages, [...FEATURED].sort((a, b) => a - b));
+  const sections = new Set(FEATURED.map((n) => SECTIONS.find((s) => n >= s.from && n <= s.to).page));
+  assert.deepEqual([...sections].sort(), [201, 202, 203, 204, 205, 206]);
+});
+test('every genre page sits in exactly one section; sections are 201..207', () => {
+  assert.deepEqual(SECTIONS.map((s) => s.page), [201, 202, 203, 204, 205, 206, 207]);
   for (const g of GENRES) {
     assert.equal(SECTIONS.filter((s) => g.page >= s.from && g.page <= s.to).length, 1, `${g.label} on ${g.page}`);
   }

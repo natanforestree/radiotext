@@ -1,7 +1,7 @@
 // HTML string renderers for the Teletext pages. Every API-derived string goes through escapeHtml.
 import { displayName, shortTag } from './stations.js';
 import { savedPage, paginate, genresIn } from './pages.js';
-import { GENRES, SECTIONS, PER_PAGE } from './config.js';
+import { GENRES, SECTIONS, FEATURED, PER_PAGE } from './config.js';
 import { mosaicSvg, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
 import { clockTime } from './diag.js';
 
@@ -126,15 +126,15 @@ function pageRows(items) {
 
 const heading = (text) => `<h2 class="sec">${escapeHtml(text)}</h2>`;
 
-/** Page 200: the first section's genres, then the other sections' index pages. */
-export function renderGenres(genres, live, sections = SECTIONS) {
-  const [first, ...more] = sections;
+/** Page 200: the popular genres, then every section's index page. */
+export function renderGenres(genres, live, sections = SECTIONS, featured = FEATURED) {
+  const popular = featured.map((n) => genres.find((g) => g.page === n)).filter(Boolean);
   return masthead('GENRES') + renderStatus(live)
-    + heading(first.label) + pageRows(genresIn(first, genres))
-    + (more.length ? heading('MORE GENRES') + pageRows(more) : '');
+    + heading('POPULAR') + pageRows(popular)
+    + heading('ALL GENRES') + pageRows(sections);
 }
 
-/** Pages 201-206: one section's genres. */
+/** Pages 201-207: one section's genres. */
 export function renderSection({ section, genres, live }) {
   return masthead(section.label) + renderStatus(live) + pageRows(genresIn(section, genres));
 }
@@ -174,7 +174,7 @@ export function renderSearch({ query, list, live }) {
     + `<input name="q" type="search" value="${escapeHtml(query)}" placeholder="NAME OR TAG" aria-label="Search stations" `
     + 'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">'
     + '<button type="submit">FIND</button></form>';
-  const body = list ? listBody(list) : '<p class="msg hint">TRY <span class="tg">SLUDGE</span>, <span class="tg">NOISE</span> OR A STATION NAME</p>';
+  const body = list ? listBody(list) : '<p class="msg hint">TRY <span class="tg">JAZZ</span>, <span class="tg">SALSA</span>, <span class="tg">TECHNO</span> OR A STATION NAME</p>';
   return masthead('SEARCH') + renderStatus(live) + form + body;
 }
 

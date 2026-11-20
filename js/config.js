@@ -67,6 +67,8 @@ export const GENRES = [
   { page: 246, label: 'POWER METAL', tags: ['power metal', 'symphonic metal', 'melodic metal'] },
   { page: 247, label: 'METALCORE & NU METAL', tags: ['metalcore', 'deathcore', 'nu metal', 'nu-metal'] },
 
+  { page: 248, label: 'DANCE', tags: ['dance', 'edm', 'eurodance', 'pop dance', 'club', 'electronic dance music', 'dance music'], broad: true },
+  { page: 249, label: 'CHILLOUT', tags: ['chillout', 'chill out', 'chill', 'lofi', 'lo-fi'] },
   { page: 250, label: 'ELECTRONIC', tags: ['electronic', 'electronica'], broad: true },
   { page: 251, label: 'TECHNO', tags: ['techno'] },
   { page: 252, label: 'HOUSE', tags: ['house', 'deep house', 'tech house'] },
@@ -78,11 +80,11 @@ export const GENRES = [
   { page: 258, label: 'SYNTHWAVE', tags: ['synthwave', 'retrowave', 'outrun', 'vaporwave'] },
   { page: 259, label: 'IDM', tags: ['idm', 'glitch', 'breakcore'] },
 
-  { page: 260, label: 'JAZZ', tags: ['jazz'], broad: true },
+  { page: 260, label: 'JAZZ', tags: ['jazz', 'smooth jazz'], broad: true },
   { page: 261, label: 'FREE JAZZ', tags: ['free jazz', 'avant-garde jazz', 'avant jazz', 'spiritual jazz'] },
   { page: 262, label: 'JAZZ FUSION', tags: ['jazz fusion', 'fusion', 'acid jazz', 'jazz-funk'] },
   { page: 263, label: 'SWING', tags: ['swing', 'big band'] },
-  { page: 264, label: 'LOUNGE', tags: ['lounge', 'exotica'] },
+  { page: 264, label: 'LOUNGE & EASY LISTENING', tags: ['lounge', 'exotica', 'easy listening'] },
   { page: 265, label: 'BLUES', tags: ['blues', 'blues rock'] },
   { page: 266, label: 'SOUL', tags: ['soul', 'northern soul', 'neo soul'] },
   { page: 267, label: 'FUNK', tags: ['funk'] },
@@ -92,12 +94,13 @@ export const GENRES = [
   { page: 270, label: 'REGGAE', tags: ['reggae', 'roots reggae'] },
   { page: 271, label: 'DUB', tags: ['dub'] },
   { page: 272, label: 'SKA', tags: ['ska', 'ska punk'] },
-  { page: 273, label: 'LATIN', tags: ['latin', 'latin music'] },
+  { page: 273, label: 'LATIN', tags: ['latin', 'latin music', 'latino', 'latin pop', 'reggaeton', 'salsa', 'tropical', 'cumbia'], broad: true },
   { page: 274, label: 'TANGO', tags: ['tango'] },
   { page: 275, label: 'BRAZILIAN', tags: ['mpb', 'bossa nova', 'samba'] },
   { page: 276, label: 'AFRICAN', tags: ['african music', 'afrobeat', 'afrobeats', 'highlife', 'afropop'] },
   { page: 277, label: 'BOLLYWOOD', tags: ['bollywood', 'indian', 'hindi'] },
   { page: 278, label: 'WORLD', tags: ['world music', 'world'], exclude: ['news', 'talk', 'information', 'news talk'], broad: true },
+  { page: 279, label: 'REGIONAL MEXICAN', tags: ['regional mexican', 'regional mexicana', 'grupera', 'banda', 'grupero', 'norteño', 'ranchera', 'mariachi'] },
 
   // Bare 'folk' on Radio Browser is mostly Balkan pop-folk, so this page goes by narrower tags.
   { page: 280, label: 'FOLK', tags: ['folk rock', 'indie folk', 'singer-songwriter', 'contemporary folk', 'folk-rock', 'neofolk', 'acoustic'] },
@@ -108,32 +111,36 @@ export const GENRES = [
   { page: 285, label: 'OPERA', tags: ['opera'] },
   { page: 286, label: 'SOUNDTRACKS', tags: ['soundtrack', 'soundtracks', 'film music', 'movie soundtracks', 'film score'] },
   { page: 287, label: 'VIDEO GAME MUSIC', tags: ['video game music', 'vgm', 'chiptune', 'game music'] },
+  { page: 288, label: 'GOSPEL & CHRISTIAN', tags: ['gospel', 'christian', 'christian music', 'contemporary christian', 'worship', 'christian rock'],
+    exclude: ['talk', 'news', 'christian talk', 'christian preaching', 'preaching', 'sermons'] },
 
-  { page: 290, label: 'POP', tags: ['pop'], broad: true },
+  { page: 290, label: 'POP & HITS', tags: ['pop', 'pop music', 'hits', 'top 40', 'top40', 'top hits', 'charts', 'adult contemporary'], broad: true },
   { page: 291, label: 'SYNTHPOP', tags: ['synthpop', 'synth pop', 'synth-pop', 'electropop'] },
   { page: 292, label: 'NEW WAVE', tags: ['new wave'] },
   { page: 293, label: 'DISCO', tags: ['disco', 'italo disco', 'nu disco', 'italo-disco'] },
-  { page: 294, label: 'OLDIES', tags: ['oldies', '50s', '60s', 'doo wop', "rock'n'roll", 'rock n roll', 'rock and roll'] },
-  { page: 295, label: '70S', tags: ['70s'] },
-  { page: 296, label: '80S', tags: ['80s'] },
-  { page: 297, label: '90S', tags: ['90s'] },
+  { page: 294, label: 'OLDIES & CLASSIC HITS', tags: ['oldies', 'classic hits', '50s', '60s', "60's", 'doo wop', "rock'n'roll", 'rock n roll', 'rock and roll'] },
+  { page: 295, label: '70S', tags: ['70s', "70's", '1970s', '70er'] },
+  { page: 296, label: '80S', tags: ['80s', "80's", '1980s', '80er'] },
+  { page: 297, label: '90S', tags: ['90s', "90's", '1990s', '90er'] },
   { page: 298, label: 'K-POP', tags: ['k-pop', 'kpop'] },
   { page: 299, label: 'J-POP', tags: ['j-pop', 'jpop', 'anime'] },
 ];
 /**
- * The genre index pages. Page 200 lists the first range itself and links to the others; each
- * of those lists the genre pages numbered from..to.
+ * The genre index pages, each listing the genre pages numbered from..to. Page 200 links to
+ * all of them, under the popular genres.
  * @type {Section[]}
  */
 export const SECTIONS = [
-  { page: 200, label: 'UNDERGROUND', from: 210, to: 229 },
-  { page: 201, label: 'ROCK & METAL', from: 230, to: 249 },
-  { page: 202, label: 'ELECTRONIC', from: 250, to: 259 },
+  { page: 201, label: 'ROCK & METAL', from: 230, to: 247 },
+  { page: 202, label: 'ELECTRONIC & DANCE', from: 248, to: 259 },
   { page: 203, label: 'JAZZ, SOUL & HIP HOP', from: 260, to: 269 },
-  { page: 204, label: 'REGGAE & WORLD', from: 270, to: 279 },
+  { page: 204, label: 'REGGAE, LATIN & WORLD', from: 270, to: 279 },
   { page: 205, label: 'FOLK, COUNTRY, CLASSICAL', from: 280, to: 289 },
   { page: 206, label: 'POP & OLDIES', from: 290, to: 299 },
+  { page: 207, label: 'UNDERGROUND', from: 210, to: 229 },
 ];
+/** Page 200's own list, one tap from BROWSE: the big genres from every section, in page order. */
+export const FEATURED = [230, 242, 248, 250, 260, 266, 269, 270, 273, 282, 284, 288, 290, 294];
 export const EXCLUDE_TAGS = ['adult', 'erotic', 'explicit', 'sleep', 'relax', 'relaxation', 'asmr', 'meditation', 'white noise', 'pink noise', 'brown noise'];
 export const EXCLUDE_NAME = /\b(white|pink|brown|green) noise\b|\bsleep\b|\basmr\b|\bsex\b/i;
 
