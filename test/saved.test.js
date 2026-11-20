@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { safeStorage, createSaved, createDead } from '../js/saved.js';
+import { safeStorage, createSaved, createDead, dropRetired } from '../js/saved.js';
 
 class MemStorage { m = new Map(); getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } }
 const blocked = { getItem() { throw new Error('SecurityError'); }, setItem() { throw new Error('SecurityError'); } };
@@ -20,6 +20,22 @@ test('blocked storage still gives the presets and keeps saves in memory', () => 
   const saved = createSaved(safeStorage(blocked), defaults);
   assert.deepEqual(saved.list().map((s) => s.uuid), ['a', 'b', 'c']);
   saved.add(st('d')); assert.equal(saved.has('d'), true);
+});
+test('retired presets come off an existing list once, and the rest stay in order', () => {
+  const mem = new MemStorage();
+  createSaved(safeStorage(mem), defaults).add(st('fluid'));
+  dropRetired(safeStorage(mem), ['a', 'c']);
+  assert.deepEqual(createSaved(safeStorage(mem), defaults).list().map((s) => s.uuid), ['b', 'fluid']);
+  createSaved(safeStorage(mem), defaults).add(st('a'));
+  dropRetired(safeStorage(mem), ['a', 'c']);
+  assert.deepEqual(createSaved(safeStorage(mem), defaults).list().map((s) => s.uuid), ['b', 'fluid', 'a']);
+});
+test('a first run after retiring seeds the new presets, and a later retirement still applies', () => {
+  const mem = new MemStorage();
+  dropRetired(safeStorage(mem), ['a']);
+  assert.deepEqual(createSaved(safeStorage(mem), defaults).list().map((s) => s.uuid), ['a', 'b', 'c']);
+  dropRetired(safeStorage(mem), ['a', 'b']);
+  assert.deepEqual(createSaved(safeStorage(mem), defaults).list().map((s) => s.uuid), ['a', 'c']);
 });
 test('missing storage falls back to memory', () => {
   const store = safeStorage(undefined);

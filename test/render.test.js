@@ -2,7 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad } from '../js/render.js';
 import { GENRES, SECTIONS } from '../js/config.js';
-import { PRESETS } from '../js/config.js';
+
+// The stations that used to be the presets, kept as fixtures.
+const STATIONS = [
+  { uuid: '963b7906-0601-11e8-ae97-52543be04c81', name: '12XU', url: 'https://stream.laut.fm/12xu', codec: 'MP3', bitrate: 128,
+    tags: ['garage punk', 'indie rock', 'noise rock', 'post-punk', 'punk'], country: 'DE', votes: 433, hls: false },
+  { uuid: '960de41d-0601-11e8-ae97-52543be04c81', name: 'SomaFM Metal Detector', url: 'https://ice5.somafm.com/metal-128-aac', codec: 'AAC', bitrate: 128,
+    tags: ['black metal', 'doom metal', 'post-punk', 'progressive rock', 'sludge', 'stoner rock'], country: 'US', votes: 7731, hls: false },
+  { uuid: 'ac497573-a6c5-4505-9086-2a905134abb5', name: 'RadCap Noise Rock', url: 'http://79.120.39.202:8000/noiserock', codec: 'AAC+', bitrate: 320,
+    tags: ['noise rock', 'rock'], country: 'RU', votes: 19, hls: false },
+];
 
 test('escapeHtml escapes markup characters', () => {
   assert.equal(escapeHtml(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -18,7 +27,7 @@ test('header shows page, name and a zero-padded clock', () => {
   assert.ok(html.includes('P100') && html.includes('RADIOTEXT') && html.includes('07:05'));
 });
 test('home lists saved stations as pages 101.. and marks the current one', () => {
-  const html = renderHome({ onAir: { station: PRESETS[1], kind: 'playing', song: null, saved: true }, saved: PRESETS, currentUuid: PRESETS[1].uuid });
+  const html = renderHome({ onAir: { station: STATIONS[1], kind: 'playing', song: null, saved: true }, saved: STATIONS, currentUuid: STATIONS[1].uuid });
   assert.match(html, /class="row cur"[^>]*data-tune="960de41d-0601-11e8-ae97-52543be04c81"/);
   for (const n of ['101', '102', '103']) assert.ok(html.includes(n));
   assert.ok(html.includes('data-page="200"') && html.includes('data-page="300"') && html.includes('data-page="999"'));
@@ -34,10 +43,10 @@ test('the engineering log lists notes newest first, escaped, with copy and clear
 });
 test('on-air status lines follow the player state', () => {
   assert.ok(renderOnAir({ station: null, kind: 'off', song: null, saved: false }).includes('OFF AIR — PRESS PLAY'));
-  assert.ok(renderOnAir({ station: PRESETS[0], kind: 'retrying', song: null, saved: true }).includes('NO SIGNAL — RETRYING'));
-  assert.ok(renderOnAir({ station: PRESETS[0], kind: 'lost', song: null, saved: true }).includes('NO SIGNAL — PRESS PLAY'));
-  assert.ok(renderOnAir({ station: PRESETS[0], kind: 'unavailable', song: null, saved: true }).includes('PAGE NOT AVAILABLE'));
-  assert.ok(renderOnAir({ station: PRESETS[1], kind: 'playing', song: 'Tulus - 09 Sabbat', saved: true }).includes('Tulus - 09 Sabbat'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'retrying', song: null, saved: true }).includes('NO SIGNAL — RETRYING'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'lost', song: null, saved: true }).includes('NO SIGNAL — PRESS PLAY'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'unavailable', song: null, saved: true }).includes('PAGE NOT AVAILABLE'));
+  assert.ok(renderOnAir({ station: STATIONS[1], kind: 'playing', song: 'Tulus - 09 Sabbat', saved: true }).includes('Tulus - 09 Sabbat'));
 });
 test('lists show stars, subpages and states', () => {
   const st = (uuid) => ({ uuid, name: uuid, tags: ['noise'], country: 'DE', votes: 1, bitrate: 128 });
@@ -64,7 +73,7 @@ test('fastext labels follow page and play state', () => {
 
 // Genre, genres and search pages have no ON AIR block, so a station that won't start says so here.
 test('the status line shows the tuned station with the ON AIR state text and lamp', () => {
-  const radcap = PRESETS[2];
+  const radcap = STATIONS[2];
   for (const [kind, lamp, text] of [['tuning', 'busy', 'TUNING…'], ['retrying', 'busy', 'NO SIGNAL — RETRYING'],
     ['lost', 'bad', 'NO SIGNAL — PRESS PLAY'], ['unavailable', 'bad', 'PAGE NOT AVAILABLE'], ['off', 'off', 'OFF AIR — PRESS PLAY']]) {
     const html = renderStatus({ station: radcap, kind, song: 'Old Song' });
@@ -87,7 +96,7 @@ test('the status line escapes station names and songs', () => {
   assert.ok(!on.includes('<script') && on.includes('&lt;script&gt;&quot;x&quot;&lt;/script&gt;'));
 });
 test('genre, genres and search pages carry the status line under the title', () => {
-  const live = { station: PRESETS[2], kind: 'retrying', song: null };
+  const live = { station: STATIONS[2], kind: 'retrying', song: null };
   const list = { stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: '210', status: 'loading' };
   const pages = [renderList({ page: 210, title: 'NOISE ROCK', ...list, live }), renderGenres(GENRES, live),
     renderSection({ section: SECTIONS[1], genres: GENRES, live }), renderSearch({ query: 'noise', list, live })];
@@ -96,7 +105,7 @@ test('genre, genres and search pages carry the status line under the title', () 
     assert.ok(at > html.indexOf('class="band"') && html.includes('NO SIGNAL — RETRYING'));
     assert.ok(at < Math.min(...['<ul', '<form', '<p class="msg'].map((t) => html.indexOf(t)).filter((i) => i >= 0)));
   }
-  assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: PRESETS, currentUuid: null }).includes('id="status"'));
+  assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: STATIONS, currentUuid: null }).includes('id="status"'));
 });
 test('page 200 lists the underground genres, then links to the other genre indexes', () => {
   const html = renderGenres(GENRES, {});

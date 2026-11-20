@@ -38,6 +38,23 @@ export function safeStorage(storage) {
 
 const SAVED_KEY = 'radiotext-saved';
 const DEAD_KEY = 'radiotext-dead';
+const RETIRED_KEY = 'radiotext-retired';
+
+/**
+ * Takes stations that are no longer presets off the saved list, once each: the key remembers
+ * which have been taken off, so a station starred again later stays. Run before createSaved.
+ * @param {ReturnType<typeof safeStorage>} store
+ * @param {string[]} uuids
+ */
+export function dropRetired(store, uuids) {
+  const v = store.get(RETIRED_KEY);
+  const done = new Set(Array.isArray(v) ? v : []);
+  const todo = uuids.filter((u) => !done.has(u));
+  if (!todo.length) return;
+  const list = store.get(SAVED_KEY);
+  if (Array.isArray(list)) store.set(SAVED_KEY, list.filter((s) => !todo.includes(s?.uuid)));
+  store.set(RETIRED_KEY, [...done, ...todo]);
+}
 
 /**
  * @param {ReturnType<typeof safeStorage>} store

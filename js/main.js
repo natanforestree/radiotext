@@ -1,8 +1,8 @@
 // Radiotext: wires the pages, the fastext keys, the keyboard and the lock screen to the player.
 // Nothing plays on load: browsers need a tap (PLAY or a station row) before audio can start.
-import { RELAY_BASE, PRESETS, GENRES, SECTIONS, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
+import { RELAY_BASE, PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
 import { prepareList, displayName } from './stations.js';
-import { safeStorage, createSaved, createDead } from './saved.js';
+import { safeStorage, createSaved, createDead, dropRetired } from './saved.js';
 import { createFlip } from './fliplist.js';
 import { route, paginate, parentPage } from './pages.js';
 import { createRadioBrowser } from './radiobrowser.js';
@@ -25,6 +25,7 @@ const audio = /** @type {HTMLAudioElement} */ (document.getElementById('radio'))
 
 // Even reading window.localStorage throws when storage is blocked, so that is wrapped too.
 const store = safeStorage((() => { try { return globalThis.localStorage; } catch { return null; } })());
+dropRetired(store, RETIRED_PRESETS);
 const saved = createSaved(store, PRESETS);
 const dead = createDead(store);
 const diag = createDiag(store);

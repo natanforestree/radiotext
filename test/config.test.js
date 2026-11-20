@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESETS, GENRES, SECTIONS, RELAY_BASE } from '../js/config.js';
+import { PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, RELAY_BASE } from '../js/config.js';
 
-test('presets are 12XU, Metal Detector, RadCap in order', () => {
-  assert.deepEqual(PRESETS.map((s) => s.uuid), ['963b7906-0601-11e8-ae97-52543be04c81', '960de41d-0601-11e8-ae97-52543be04c81', 'ac497573-a6c5-4505-9086-2a905134abb5']);
+test('the only preset is Fluid Radio; the old ones are retired', () => {
+  assert.deepEqual(PRESETS.map((s) => s.uuid), ['014cd228-0e4d-46a9-b5be-08a0f6607f03']);
+  assert.deepEqual(RETIRED_PRESETS, ['963b7906-0601-11e8-ae97-52543be04c81', '960de41d-0601-11e8-ae97-52543be04c81', 'ac497573-a6c5-4505-9086-2a905134abb5']);
 });
 test('the first genre pages keep 210..228, in order', () => {
   assert.deepEqual(GENRES.slice(0, 19).map((g) => g.page), Array.from({ length: 19 }, (_, i) => 210 + i));

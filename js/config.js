@@ -13,15 +13,14 @@ export const RELAY_BASE = 'https://radiotext-relay.nathanforestlee.workers.dev';
 export const API_FALLBACK = 'https://de1.api.radio-browser.info';
 export const SERVERS_URL = 'https://all.api.radio-browser.info/json/servers';
 
-/** @type {Station[]} */
+/** @type {Station[]} Seeded on a device's first run (or after its storage is cleared). */
 export const PRESETS = [
-  { uuid: '963b7906-0601-11e8-ae97-52543be04c81', name: '12XU', url: 'https://stream.laut.fm/12xu', codec: 'MP3', bitrate: 128,
-    tags: ['garage punk', 'indie rock', 'noise rock', 'post-punk', 'punk'], country: 'DE', votes: 433, hls: false },
-  { uuid: '960de41d-0601-11e8-ae97-52543be04c81', name: 'SomaFM Metal Detector', url: 'https://ice5.somafm.com/metal-128-aac', codec: 'AAC', bitrate: 128,
-    tags: ['black metal', 'doom metal', 'post-punk', 'progressive rock', 'sludge', 'stoner rock'], country: 'US', votes: 7731, hls: false },
-  { uuid: 'ac497573-a6c5-4505-9086-2a905134abb5', name: 'RadCap Noise Rock', url: 'http://79.120.39.202:8000/noiserock', codec: 'AAC+', bitrate: 320,
-    tags: ['noise rock', 'rock'], country: 'RU', votes: 19, hls: false },
+  { uuid: '014cd228-0e4d-46a9-b5be-08a0f6607f03', name: 'Fluid Radio', url: 'http://uk4-vn.webcast-server.net:9270/', codec: 'MP3', bitrate: 128,
+    tags: ['abstract', 'acoustic', 'ambient', 'experimental', 'instrumental', 'modern classical'], country: '', votes: 489, hls: false },
 ];
+/** Stations that used to be seeded: 12XU, SomaFM Metal Detector, RadCap Noise Rock. They're taken
+ *  off a saved list once, since nobody starred them; starring one again afterwards keeps it. */
+export const RETIRED_PRESETS = ['963b7906-0601-11e8-ae97-52543be04c81', '960de41d-0601-11e8-ae97-52543be04c81', 'ac497573-a6c5-4505-9086-2a905134abb5'];
 /** @type {Station} */
 export const FALLBACK_103 = { uuid: '873bc6e5-2632-424c-a044-5b08b9655c19', name: 'Athens Noise Rocks',
   url: 'https://radio.athensnoise.rocks/listen/athensnoise.rocks/radio.mp3', codec: 'MP3', bitrate: 128,
