@@ -3,7 +3,7 @@
    what's playing, and a dark mode that swaps the two. A phone gets one column of windows; a wide
    screen (760px wide and 500px tall and up, the same test as in js/main.js) gets the saved
    stations, the index one level up and the page side by side, each list scrolling in its own
-   window. The only motion is the dither that turns the screen over between light and dark. */
+   window. The only motion is the rings that turn the screen over between light and dark. */
 
 @font-face {
   font-family: "Pixelify Sans";

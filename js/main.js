@@ -432,8 +432,8 @@ function applyTheme() {
   document.querySelector('meta[name=color-scheme]')?.setAttribute('content', dark ? 'dark' : 'light');
 }
 
-/** The moon/sun key. Night falls from the top; morning comes up from the bottom. A tap while the
- *  screen is still turning over is ignored. */
+/** The moon/sun key. Rings spread out from the key itself, and the screen swings between light
+ *  and dark as they pass. A tap while the screen is still turning over is ignored. */
 let turning = false;
 function toggleTheme() {
   if (turning) return;
@@ -441,7 +441,9 @@ function toggleTheme() {
   saveTheme(store, dark ? 'dark' : 'light');
   renderTop();
   turning = true;
-  ditherSwap({ from: dark ? 'top' : 'bottom', apply: () => { applyTheme(); turning = false; } });
+  const key = hdr.querySelector('[data-theme-toggle]')?.getBoundingClientRect();
+  const origin = key ? { x: key.left + key.width / 2, y: key.top + key.height / 2 } : { x: innerWidth, y: 0 };
+  ditherSwap({ origin, apply: () => { applyTheme(); turning = false; } });
 }
 
 // ---- Engineering log ----
