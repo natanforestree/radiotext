@@ -56,11 +56,19 @@ function indexRow({ n, label, tag, attrs, cur = false, here = false }) {
     + `<span class="n">${n}</span><span class="nm">${label}</span><span class="t">${tag}</span></button></li>`;
 }
 
-/** The top bar. The page number is a button: it opens the keypad for typing a page number. */
+/** The top bar menu, shown on a wide screen: the pages the phone reaches from home. */
+const MENU = [[200, 'Genres'], [300, 'Search'], [999, 'Engineering']];
+
+/** The top bar. The page number is a button: it opens the keypad for typing a page number. On a
+ *  wide screen a menu follows it, with the part of the radio you're in marked. */
 export function renderHeader(page, now, { padOpen = false } = {}) {
+  const n = Number(page);
+  const area = n >= 200 && n < 300 ? 200 : n;
+  const menu = MENU.map(([p, label]) => `<button class="mi${area === p ? ' on' : ''}" data-page="${p}"`
+    + `${area === p ? ' aria-current="page"' : ''}>${label}</button>`).join('');
   return `<span class="app">${MAST}<span>Radiotext</span></span>`
     + `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
-    + `Page ${escapeHtml(page)}</button><span class="sp"></span>`
+    + `Page ${escapeHtml(page)}</button><nav class="menu" aria-label="Pages">${menu}</nav><span class="sp"></span>`
     + `<span class="dt">${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}</span>`
     + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`;
 }
@@ -148,7 +156,8 @@ export function renderHome({ onAir, saved, currentUuid }) {
   return renderDesk({
     home: true,
     rail: renderRail({ onAir, saved, currentUuid }),
-    main: win('Pages', `<ul class="wbody idx links">${links}</ul>`, 'pages'),
+    main: win('Pages', `<ul class="wbody idx links">${links}</ul>`, 'pages')
+      + genresWindows({ genres: GENRES, sections: SECTIONS, featured: FEATURED, scroll: 'home', cls: 'wide-only' }),
   });
 }
 
@@ -160,10 +169,10 @@ function pageRows(items, { here = 0, scroll = '' } = {}) {
   return `<ul class="wbody idx genres"${scroll ? ` data-scroll="${scroll}"` : ''}>${rows}</ul>`;
 }
 
-function genresWindows({ genres, sections, featured, status = '', here = 0, scroll }) {
+function genresWindows({ genres, sections, featured, status = '', here = 0, scroll, cls = '' }) {
   const popular = featured.map((n) => genres.find((g) => g.page === n)).filter(Boolean);
-  return win('Popular Genres', status + pageRows(popular, { here, scroll: `${scroll}:pop` }))
-    + win('All Genres', pageRows(sections, { here, scroll: `${scroll}:all` }));
+  return win('Popular Genres', status + pageRows(popular, { here, scroll: `${scroll}:pop` }), cls)
+    + win('All Genres', pageRows(sections, { here, scroll: `${scroll}:all` }), cls);
 }
 
 /** Page 200: the popular genres, then every section's index page. */

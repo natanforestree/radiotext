@@ -62,9 +62,9 @@ const liveArgs = () => ({ station: player.state.station, kind: player.state.kind
 
 // ---- Rendering ----
 
-// A wide screen (the same width as in styles.css) puts the saved stations beside the page, and
-// gets more stations per subpage.
-const wide = matchMedia('(min-width: 760px)');
+// A wide screen (the same test as in styles.css) puts the saved stations beside the page, and
+// gets more stations per subpage. A short one (a phone on its side) keeps the phone layout.
+const wide = matchMedia('(min-width: 760px) and (min-height: 500px)');
 const perPage = () => (wide.matches ? PER_PAGE_WIDE : PER_PAGE);
 
 /** The page itself: the right-hand window(s) on a wide screen, the whole page on a phone. */
@@ -493,7 +493,10 @@ function onClick(e) {
 pageEl.addEventListener('click', onClick);
 keysEl.addEventListener('click', onClick);
 hdr.addEventListener('click', (e) => {
-  if (e.target instanceof Element && e.target.closest('[data-pad]')) setPad(!padOpen);
+  const el = e.target instanceof Element ? e.target.closest('button') : null;
+  if (!el) return;
+  if (el.hasAttribute('data-pad')) setPad(!padOpen);
+  else if (el.dataset.page) goTo(Number(el.dataset.page)); // the wide-screen menu
 });
 padEl.addEventListener('click', (e) => {
   const el = e.target instanceof Element ? e.target.closest('button') : null;

@@ -124,6 +124,19 @@ test('a genre index page lists only its own genres, under its title', () => {
   const underground = renderSection({ section: SECTIONS[6], genres: GENRES, live: {} });
   assert.deepEqual([...underground.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1])), Array.from({ length: 20 }, (_, i) => 210 + i));
 });
+test('the header menu marks the part of the radio you are in', () => {
+  const on = (html) => [...html.matchAll(/class="mi on" data-page="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.deepEqual(on(renderHeader(212, new Date())), [200]);
+  assert.deepEqual(on(renderHeader(300, new Date())), [300]);
+  assert.deepEqual(on(renderHeader(100, new Date())), []);
+  assert.deepEqual(on(renderHeader('2__', new Date())), []);
+  for (const n of [200, 300, 999]) assert.ok(renderHeader(100, new Date()).includes(`data-page="${n}"`));
+});
+test('home on a wide screen also carries the genre lists', () => {
+  const html = renderHome({ onAir: { station: null, kind: 'off' }, saved: [], currentUuid: null });
+  assert.ok(html.includes('class="win pages"') && html.includes('class="win wide-only"'));
+  assert.ok(html.indexOf('<span>Popular Genres</span>') > html.indexOf('<span>Pages</span>'));
+});
 test('the header page number is a key that opens the keypad', () => {
   const shut = renderHeader(212, new Date(2026, 10, 2, 8, 30));
   assert.match(shut, /<button class="pg" data-pad [^>]*aria-expanded="false">Page 212<\/button>/);

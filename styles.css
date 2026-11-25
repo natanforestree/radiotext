@@ -1,7 +1,7 @@
 /* Radiotext: the one-bit look.
    Black and white only: windows with striped title bars on a dithered desktop, and inverse video
-   for what's playing. A phone gets one column of windows; a wide screen (760px and up, the same
-   width as in js/main.js) gets the saved stations, the index one level up and the page side by
+   for what's playing. A phone gets one column of windows; a wide screen (760px wide and 500px
+   tall and up, the same test as in js/main.js) gets the saved stations, the index one level up and the page side by
    side, each list scrolling in its own window. Dark mode swaps the two colours. No motion. */
 
 @font-face {
@@ -18,7 +18,9 @@
   --tap: 44px;  /* smallest tappable row */
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
+/* A phone set to dark swaps the colours (the car at night). A wide screen stays white: the dither
+   on black reads as static there. */
+@media (prefers-color-scheme: dark) and (max-width: 759.98px), (prefers-color-scheme: dark) and (max-height: 499.98px) {
   :root { --paper: #000000; --ink: #ffffff; color-scheme: dark; }
 }
 
@@ -86,7 +88,9 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 #hdr .app { display: flex; align-items: center; gap: .45em; font-weight: 700; }
 #hdr .app svg { display: block; width: auto; height: 24px; height: round(nearest, 1.3em, 12px); }
 #hdr .sp { flex: 1; }
-#hdr .dt { display: none; }
+#hdr .dt, #hdr .menu { display: none; }
+#hdr .mi { padding: 0 .55em; border-radius: 4px; }
+#hdr .mi.on, #hdr .mi:active { background: var(--ink); color: var(--paper); }
 
 /* The page number is a key: tap it to type a page. Its tap area is bigger than it looks. */
 #hdr .pg {
@@ -147,6 +151,8 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 }
 .win > .tbar + * { border-top: 2px solid var(--ink); }
 .wbody { flex: 1 1 auto; min-height: 0; }
+/* Home on a wide screen opens on the genre lists; a phone has the Pages window instead. */
+.wide-only { display: none; }
 
 /* ---- Lamps: the player state ---- */
 
@@ -290,7 +296,7 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 .btn:active { background: var(--ink); color: var(--paper); }
 .btn:disabled { visibility: hidden; }
 @media (hover: hover) {
-  .btn:hover, #hdr .pg:hover { background: var(--ink); color: var(--paper); }
+  .btn:hover, #hdr .pg:hover, #hdr .mi:hover { background: var(--ink); color: var(--paper); }
 }
 
 /* ---- Subpages, messages, search ---- */
@@ -355,14 +361,20 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 .pk { min-height: 52px; font-size: 1.15em; }
 .pk.op { font-size: 1em; }
 
-/* ---- Wide screens: one screen tall, the windows side by side, the type growing with it ---- */
+/* ---- Wide screens: one screen tall, full-height panes side by side, centred, the type growing
+   with the window (in whole pixels, as far as the browser can) ---- */
 
-@media (min-width: 760px) {
-  body { font-size: clamp(15px, min(1.2vw, 2.1vh), 28px); }
+@media (min-width: 760px) and (min-height: 500px) {
+  body {
+    font-size: clamp(15px, min(1.2vw, 2.35vh), 28px);
+    font-size: round(nearest, clamp(15px, min(1.2vw, 2.35vh), 28px), 1px);
+  }
 
   #screen { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
-  #hdr { padding-left: 1.4em; padding-right: 1.4em; }
+  /* The bars run edge to edge; what's on them lines up with the panes below. */
+  #hdr, #fastext, .pad { padding-left: max(1.2em, calc((100% - 100em) / 2)); padding-right: max(1.2em, calc((100% - 100em) / 2)); }
   #hdr .dt { display: inline; }
+  #hdr .menu { display: flex; gap: .3em; margin-left: .6em; }
 
   #page {
     --gap: 1.2em;
@@ -370,20 +382,16 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
     overflow: hidden;
     padding: var(--gap) calc(var(--gap) + 4px) calc(var(--gap) + 4px) var(--gap);
   }
-  .desk { flex-direction: row; height: 100%; }
+  .desk { flex-direction: row; height: 100%; max-width: 100em; margin-inline: auto; }
   .rail { display: flex; flex: 0 0 20em; }
-  .rail > .win, .idxcol > .win { flex: 0 1 auto; }
   .rail > .air { flex: none; }
-  .main {
-    flex: 1 1 0;
-    flex-flow: row wrap;
-    align-items: flex-start;
-    align-content: flex-start;
-    overflow-y: auto;
-    padding: 0 4px 4px 0;
-  }
-  .main > .win { flex: 1 1 20em; max-height: 100%; }
-  .desk.home .main > .win { flex: 0 1 24em; }
+  .rail > .saved-win, .idxcol > .win { flex: 1 1 auto; }
+  /* Every window here is exactly the column's height; a long list scrolls inside its window, so
+     the subpage keys at its foot stay in view. Two windows (the genre lists) sit side by side. */
+  .main { flex: 1 1 0; flex-direction: row; align-items: stretch; }
+  .main > .win { flex: 1 1 0; }
+  .wide-only { display: flex; }
+  .desk.home .pages { display: none; }
   .wbody { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ink) var(--paper); }
 
   /* Now Playing is always in view, so the status line isn't needed. */
@@ -414,22 +422,37 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
   .st .nm { overflow: hidden; text-overflow: ellipsis; }
   .st .meta { display: contents; font-size: 1em; }
 
-  #fastext { display: flex; align-items: center; gap: 1.2em; padding: .7em 1.4em calc(.7em + env(safe-area-inset-bottom)); }
+  #fastext { display: flex; align-items: center; gap: 1.2em; padding-top: .7em; padding-bottom: calc(.7em + env(safe-area-inset-bottom)); }
   .fk { min-width: 7em; min-height: 2.4em; }
   #fastext .hint { display: block; margin-left: auto; white-space: nowrap; }
 
-  .pad { display: flex; align-items: center; gap: 1.2em; padding: .7em 1.4em; }
+  .pad { display: flex; align-items: center; gap: 1.2em; padding-top: .7em; padding-bottom: .7em; }
   .pad-show { min-width: 6.5em; min-height: 2.4em; }
   .pad-keys { display: flex; flex-wrap: wrap; gap: .6em; }
   .pk { min-height: 2.4em; min-width: 2.6em; }
 }
 
+/* Two columns (up to 1200px): the type can grow a little more with the width. Under 900px the
+   genre lists stack instead of sitting side by side, and the shortcut hint makes room for the keys. */
+@media (min-width: 760px) and (max-width: 1199.98px) and (min-height: 500px) {
+  body {
+    font-size: clamp(15px, min(1.5vw, 2.35vh), 28px);
+    font-size: round(nearest, clamp(15px, min(1.5vw, 2.35vh), 28px), 1px);
+  }
+}
+@media (min-width: 760px) and (max-width: 999.98px) and (min-height: 500px) {
+  #fastext .hint { display: none; }
+}
+@media (min-width: 760px) and (max-width: 899.98px) and (min-height: 500px) {
+  .main { flex-direction: column; }
+}
+
 /* A touch screen keeps rows big enough for a finger. */
-@media (min-width: 760px) and (pointer: coarse) {
+@media (min-width: 760px) and (min-height: 500px) and (pointer: coarse) {
   .row, .star { min-height: var(--tap); }
 }
 
 /* Room for the index one level up, between the saved stations and the page. */
-@media (min-width: 1200px) {
-  .desk.has-idx .idxcol { display: flex; flex: 0 0 15em; }
+@media (min-width: 1200px) and (min-height: 500px) {
+  .desk.has-idx .idxcol { display: flex; flex: 0 0 17em; }
 }
