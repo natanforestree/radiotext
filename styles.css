@@ -413,6 +413,7 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
   .main { flex: 1 1 0; flex-direction: row; align-items: stretch; }
   .main > .win { flex: 1 1 0; }
   .wide-only { display: flex; }
+  .phone-only { display: none; }
   .desk.home .pages { display: none; }
   .wbody { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ink) var(--paper); }
 

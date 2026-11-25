@@ -249,17 +249,18 @@ export function renderDiag(entries, live) {
     + (rows ? `<ol class="wbody diag">${rows}</ol>` : '<p class="msg">Nothing logged yet.</p>'));
 }
 
-/** The four keys along the bottom. The last is Browse on home; elsewhere it goes up to `up`:
- *  Index when that's a genre index, Home when it's home. Then the keyboard shortcuts, which only
- *  a wide screen shows. */
+/** The four keys along the bottom. The last is Browse on home (a phone only: a wide screen's home
+ *  shows the genres already); elsewhere it goes up to `up`: Index when that's a genre index, Home
+ *  when it's home. Then the keyboard shortcuts, which only a wide screen shows. */
 export function renderFastext({ page, playing, up = 100 }) {
   const key = (k, label, aria, cls = '') =>
     `<button class="btn fk${cls}" data-key="${k}" aria-label="${aria}">${label}</button>`;
-  const [label, aria] = Number(page) === 100 ? ['Browse', 'Browse genres']
+  const home = Number(page) === 100;
+  const [label, aria] = home ? ['Browse', 'Browse genres']
     : up === 100 ? ['Home', 'Home'] : ['Index', `Back to page ${up}`];
   return key('prev', `${ICON.prev}<span>Prev</span>`, 'Previous station')
     + key('play', playing ? `${ICON.stop}<span>Stop</span>` : `${ICON.next}<span>Play</span>`, playing ? 'Stop' : 'Play', ' def')
     + key('next', `<span>Next</span>${ICON.next}`, 'Next station')
-    + key('browse', `<span>${label}</span>`, aria)
+    + key('browse', `<span>${label}</span>`, aria, home ? ' phone-only' : '')
     + '<p class="hint"><kbd>Left</kbd> <kbd>Right</kbd> <kbd>Space</kbd> or type a page number</p>';
 }

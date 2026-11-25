@@ -64,6 +64,8 @@ test('search keeps the escaped query in the box', () => {
 test('fastext labels follow page and play state', () => {
   const home = renderFastext({ page: 100, playing: false });
   for (const l of ['Prev', 'Play', 'Next', 'Browse']) assert.ok(home.includes(`<span>${l}</span>`), l);
+  assert.match(home, /class="btn fk phone-only" data-key="browse"/); // a wide screen hides Browse
+  assert.ok(!renderFastext({ page: 252, playing: false, up: 202 }).includes('phone-only'));
   const other = renderFastext({ page: 300, playing: true, up: 100 });
   assert.ok(other.includes('<span>Stop</span>') && other.includes('<span>Home</span>'));
   const genre = renderFastext({ page: 252, playing: false, up: 202 });
