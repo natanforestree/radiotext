@@ -3,7 +3,7 @@
 import { displayName, shortTag, titleCase } from './stations.js';
 import { savedPage, paginate, genresIn, parentPage } from './pages.js';
 import { GENRES, SECTIONS, FEATURED, PER_PAGE } from './config.js';
-import { mosaicSvg, ANTENNA } from './mosaic.js';
+import { ANTENNA } from './mosaic.js';
 import { clockTime } from './diag.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -26,8 +26,25 @@ const ICON = {
   moon: pixel(5, 'M2 0h3v1H2zM1 1h3v1H1zM0 2h3v3H0zM1 5h3v1H1zM2 6h3v1H2z'),
   sun: pixel(7, 'M3 0h1v1H3zM1 1h1v1H1zM5 1h1v1H5zM2 2h3v3H2zM0 3h1v1H0zM6 3h1v1H6zM1 5h1v1H1zM5 5h1v1H5zM3 6h1v1H3z'),
 };
-/** The mast from the icons, in the text colour, beside the name in the top bar. */
-const MAST = mosaicSvg(ANTENNA, { R: 'currentColor', C: 'currentColor', W: 'currentColor' });
+/**
+ * The mast from the icons, in the text colour, beside the name in the top bar: the tower, its
+ * inner and outer signal arcs (a1, a2) and the light on top (tip), which the visuals light with
+ * the music. One <rect> per run of a kind.
+ */
+const MAST = (() => {
+  const kind = (c, x) => (c === 'R' ? 'tip' : c === 'C' ? (Math.abs(x - 9) <= 5 ? 'a1' : 'a2') : '');
+  let rects = '';
+  ANTENNA.forEach((row, y) => {
+    for (let x = 0; x < row.length;) {
+      const k = kind(row[x], x);
+      let end = x + 1;
+      while (end < row.length && row[end] === row[x] && kind(row[end], end) === k) end++;
+      if (row[x] !== '.') rects += `<rect x="${x}" y="${y}" width="${end - x}" height="1"${k ? ` class="${k}"` : ''} fill="currentColor"/>`;
+      x = end;
+    }
+  });
+  return `<svg class="mast" viewBox="0 0 ${ANTENNA[0].length} ${ANTENNA.length}" shape-rendering="crispEdges" aria-hidden="true" focusable="false">${rects}</svg>`;
+})();
 
 /** Status line and lamp for each player state. 'playing' shows the song instead. */
 const STATES = {
@@ -59,7 +76,7 @@ function indexRow({ n, label, tag, attrs, cur = false, here = false }) {
 }
 
 /** The top bar menu, shown on a wide screen: the pages the phone reaches from home. */
-const MENU = [[200, 'Genres'], [300, 'Search'], [999, 'Engineering']];
+const MENU = [[200, 'Genres'], [300, 'Search'], [500, 'Visuals'], [999, 'Engineering']];
 
 /** The top bar. The page number is a button: it opens the keypad for typing a page number. On a
  *  wide screen a menu follows it, with the part of the radio you're in marked. Last comes the
@@ -238,6 +255,32 @@ export function renderSearch({ query, list, live }) {
     + '<button class="btn def" type="submit">Find</button></form>';
   const body = list ? listBody(list) : '<p class="msg hint">Try <b>jazz</b>, <b>salsa</b>, <b>techno</b> or a station name.</p>';
   return win('Search', renderStatus(live) + form + body, 'list');
+}
+
+/** Page 500's switches: the main one, then each layer, with what it does. */
+const VISUAL_ROWS = [
+  ['on', 'Visuals', 'Everything below, on or off'],
+  ['signal', 'Mast', 'Its signal arcs follow the volume; its light blinks on the beat'],
+  ['bars', 'Title bars', 'Their stripes are strings the music plays, swinging out of the bar'],
+  ['boxes', 'Windows', 'Their frames swell and ripple outward; what’s inside stays still'],
+  ['trip', 'Now Playing', 'A moiré of rings in colour trips behind the station, breathing with the bass'],
+];
+
+/**
+ * Page 500: visuals that move with the music. A switch for each layer, and the signal lab: the
+ * live readings as meters (drawn by js/visuals.js), with a line saying whether the station
+ * can be read. Desktop browsers only, for now.
+ */
+export function renderVisuals({ settings, supported }) {
+  if (!supported) {
+    return win('Visuals', '<p class="msg">Visuals that move with the music need a desktop browser for now (Chrome, Edge, Brave or Firefox) in a wide window. iPhone browsers can’t read a station’s sound without risking playback.</p>');
+  }
+  const rows = VISUAL_ROWS.map(([k, label, what]) => `<li><button class="row" data-viz="${k}" aria-pressed="${Boolean(settings[k])}">`
+    + `<span class="n">${settings[k] ? 'On' : 'Off'}</span><span class="nm">${label}</span><span class="what">${what}</span></button></li>`).join('');
+  return win('Layers', `<ul class="wbody idx viz">${rows}</ul>`)
+    + win('Signal', '<p class="viz-status" id="vizstatus" aria-live="polite">Play a station to see its signal.</p>'
+      + '<canvas class="lab" width="384" height="184" aria-hidden="true"></canvas>'
+      + '<p class="lab-key">Bars: 16 bands, low to high. Line: the waveform. Rows: level, bass, mids, treble, brightness, noisiness, beat.</p>');
 }
 
 /** Page 999: the engineering log, newest first, with keys to copy it as text or clear it. */

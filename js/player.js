@@ -9,6 +9,9 @@
 //   Off keeps src for 30 s after STOP, and for 10 minutes after an outside pause.
 // Candidates are tried in order, except that the one that last worked for a station this
 // session goes first (an https attempt that hangs costs the whole 8 s tune timeout).
+// For the visuals, `corsFor` can ask for a candidate to load in CORS mode (crossOrigin), so its
+// sound can be read. Those go first, and one that fails that way is tried again without it
+// before moving on: what you hear always comes first. The relay always allows reading.
 //
 // Fast flipping is the hard part, so two guards keep an old station from touching the new one:
 // - At most one timer is ever pending (`timer`): every phase change re-arms or clears it, and
@@ -26,19 +29,20 @@ import { backoffDelay } from './reconnect.js';
 
 /**
  * @param {{audio: HTMLAudioElement, relayBase: string|null, dead: {add(uuid: string): void},
- *   online?: () => boolean, onChange?: (state: PlayerState) => void}} opts
+ *   online?: () => boolean, onChange?: (state: PlayerState) => void, corsFor?: (url: string) => boolean}} opts
  */
-export function createPlayer({ audio, relayBase, dead, online = () => globalThis.navigator?.onLine !== false, onChange = () => {} }) {
+export function createPlayer({ audio, relayBase, dead, online = () => globalThis.navigator?.onLine !== false, onChange = () => {}, corsFor = () => false }) {
   /** @type {PlayerState} */
   let state = Object.freeze({ kind: 'off', station: null });
   let gen = 0;
   /** @type {ReturnType<typeof setTimeout>|null} */
   let timer = null;
   let assigned = '';        // audio.src as the element reported it right after we set it
-  /** @type {string[]} */
+  /** @type {{url: string, cors: boolean}[]} */
   let candidates = [];
   let index = 0;            // candidate being tried while tuning
-  let working = '';         // the candidate that reached 'playing'; retries reconnect to it
+  /** @type {{url: string, cors: boolean}|null} the candidate that reached 'playing'; retries reconnect to it */
+  let working = null;
   let retryStart = 0;       // Date.now() when this run of retries began
   let attempt = 0;          // retry attempts made in this run
   let inFlight = false;     // a retry attempt is loading (false while waiting out the backoff)
@@ -69,7 +73,8 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     timer = id;
   };
 
-  const assign = (url) => {
+  const assign = ({ url, cors }) => {
+    audio.crossOrigin = cors ? 'anonymous' : null;
     audio.src = url;
     assigned = audio.src; // browsers normalise URLs; compare against what the element reports
     const g = gen;
@@ -107,7 +112,8 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
       tryCandidate();
       return;
     }
-    working = lastWorked.get(state.station.uuid) ?? '';
+    const known = lastWorked.get(state.station.uuid);
+    working = known ? candidates.find((c) => c.url === known) ?? null : null;
     if (working) startRetry();
     else unavailable(state.station);
   };
@@ -162,7 +168,7 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
   const onPlaying = () => {
     if (state.kind === 'tuning') {
       working = candidates[index];
-      lastWorked.set(state.station.uuid, working);
+      lastWorked.set(state.station.uuid, working.url);
     } else if (state.kind === 'retrying') {
       // Also accepted between attempts: a stalled or timed-out load that came back is live audio.
       inFlight = false;
@@ -211,10 +217,16 @@ export function createPlayer({ audio, relayBase, dead, online = () => globalThis
     clearTimer();
     inFlight = false;
     pausedOutside = false;
-    working = '';
+    working = null;
     const all = streamCandidates(station, relayBase);
     const known = lastWorked.get(station.uuid);
-    candidates = all.includes(known) ? [known, ...all.filter((u) => u !== known)] : all;
+    const urls = all.includes(known) ? [known, ...all.filter((u) => u !== known)] : all;
+    const relayed = (u) => Boolean(relayBase) && u.startsWith(`${relayBase}/`);
+    const readable = urls.filter((u) => corsFor(u));
+    candidates = [
+      ...readable.map((url) => ({ url, cors: true })),
+      ...urls.filter((u) => !readable.includes(u) || !relayed(u)).map((url) => ({ url, cors: false })),
+    ];
     index = 0;
     if (!candidates.length) {
       unavailable(station);

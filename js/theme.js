@@ -111,7 +111,7 @@ export function makeRipple(cols, rows, { cx = 0, cy = 0 } = {}) {
 
 const DURATION_MS = 2100;
 /** What the waves push as they pass: the things you'd see move, small enough to sway whole. */
-const PUSHED = '#hdr > *, .tbar, .row, .star, .fk, .onair > *, .status, .thead, .sub > *, .msg, .find > *, .diag-keys > *, .diag li, .pk, .pad-show';
+export const PUSHED = '#hdr > *, .tbar, .row, .star, .fk, .onair > *, .status, .thead, .sub > *, .msg, .find > *, .diag-keys > *, .diag li, .pk, .pad-show';
 
 /**
  * Flips the screen to the other theme a block at a time, rings spreading from `origin` (a point

@@ -284,3 +284,28 @@ test('the candidate that worked is tried first on the next tune of that station'
   audio.fire('playing'); p.tune(HTTPS); p.tune(HTTP); assert.equal(audio.src, HTTP_AS_HTTPS);
   p.tune({ uuid: 'other', url: 'http://other.example.org/y' }); assert.equal(audio.src, 'https://other.example.org/y');
 });
+
+// The visuals ask for streams they can read (CORS mode). Playback must never depend on it.
+test('with no corsFor, every stream loads as before, without CORS mode', (t) => {
+  const { audio, p } = setup(t);
+  p.tune(HTTPS); assert.equal(audio.crossOrigin, null);
+  p.tune(HTTP); assert.equal(audio.crossOrigin, null); assert.equal(audio.src, HTTP_AS_HTTPS);
+});
+test('a readable stream loads in CORS mode, and falls back to plain if that fails', (t) => {
+  const { audio, p } = setup(t, { corsFor: (u) => u === HTTPS.url });
+  p.tune(HTTPS); assert.equal(audio.src, HTTPS.url); assert.equal(audio.crossOrigin, 'anonymous');
+  audio.fire('error'); assert.equal(audio.src, HTTPS.url); assert.equal(audio.crossOrigin, null);
+  audio.fire('playing'); assert.equal(p.state.kind, 'playing');
+});
+test('for the visuals the relay goes first, being readable, with plain https after it', (t) => {
+  const { audio, p } = setup(t, { corsFor: (u) => u.startsWith(RELAY) });
+  p.tune(HTTP); assert.equal(audio.src, RELAY + '/s/cia'); assert.equal(audio.crossOrigin, 'anonymous');
+  audio.fire('error'); assert.equal(audio.src, HTTP_AS_HTTPS); assert.equal(audio.crossOrigin, null);
+  audio.fire('error'); assert.equal(p.state.kind, 'unavailable');
+});
+test('a retry reconnects the way that played, CORS mode and all', (t) => {
+  const { audio, p } = setup(t, { corsFor: () => true });
+  p.tune(HTTPS); audio.fire('playing');
+  audio.fire('error'); assert.equal(p.state.kind, 'retrying');
+  t.mock.timers.tick(60000); assert.equal(audio.src, HTTPS.url); assert.equal(audio.crossOrigin, 'anonymous');
+});

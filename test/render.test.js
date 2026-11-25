@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad } from '../js/render.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad, renderVisuals } from '../js/render.js';
 import { GENRES, SECTIONS } from '../js/config.js';
 
 // The stations that used to be the presets, kept as fixtures.
@@ -133,6 +133,20 @@ test('the header menu marks the part of the radio you are in', () => {
   assert.deepEqual(on(renderHeader(100, new Date())), []);
   assert.deepEqual(on(renderHeader('2__', new Date())), []);
   for (const n of [200, 300, 999]) assert.ok(renderHeader(100, new Date()).includes(`data-page="${n}"`));
+});
+test('the top bar menu has the visuals page', () => {
+  assert.match(renderHeader(500, new Date()), /class="mi on" data-page="500" aria-current="page">Visuals</);
+});
+test('page 500 has a switch per layer, marked on or off, and the signal lab', () => {
+  const html = renderVisuals({ settings: { on: true, signal: true, bars: false, boxes: true, trip: true }, supported: true });
+  for (const k of ['on', 'signal', 'bars', 'boxes', 'trip']) assert.ok(html.includes(`data-viz="${k}"`), k);
+  assert.match(html, /data-viz="bars" aria-pressed="false"><span class="n">Off</);
+  assert.match(html, /data-viz="signal" aria-pressed="true"><span class="n">On</);
+  assert.ok(html.includes('<canvas class="lab"') && html.includes('id="vizstatus"'));
+});
+test('page 500 says plainly when this browser can\'t do visuals', () => {
+  const html = renderVisuals({ settings: { on: true, signal: true, bars: true }, supported: false });
+  assert.ok(html.includes('desktop browser') && !html.includes('data-viz'));
 });
 test('home on a wide screen also carries the genre lists', () => {
   const html = renderHome({ onAir: { station: null, kind: 'off' }, saved: [], currentUuid: null });

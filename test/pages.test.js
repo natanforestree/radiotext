@@ -43,3 +43,8 @@ test('parentPage goes up one level: genre to its index, index to 200, the rest h
   assert.equal(parentPage(207, ctx), 200);
   for (const n of [200, 300, 999, 289]) assert.equal(parentPage(n, ctx), 100, String(n));
 });
+
+test('page 500 is the visuals page, one level below home', () => {
+  assert.deepEqual(route(500, { savedCount: 0, genres: [] }), { kind: 'visuals' });
+  assert.equal(parentPage(500, { genres: [], sections: [] }), 100);
+});

@@ -1,7 +1,7 @@
 // Radiotext: wires the pages, the fastext keys, the keyboard and the lock screen to the player.
 // Nothing plays on load: browsers need a tap (PLAY or a station row) before audio can start.
 import { RELAY_BASE, PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, PER_PAGE, PER_PAGE_WIDE, POLL_MS, STATIC_ENABLED } from './config.js';
-import { prepareList, displayName } from './stations.js';
+import { prepareList, displayName, streamCandidates } from './stations.js';
 import { safeStorage, createSaved, createDead, dropRetired } from './saved.js';
 import { createFlip } from './fliplist.js';
 import { route, paginate, parentPage } from './pages.js';
@@ -9,10 +9,12 @@ import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad } from './render.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad, renderVisuals } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
 import { createDiag, diagText } from './diag.js';
 import { storedTheme, saveTheme, ditherSwap } from './theme.js';
+import { createReadable, createTap } from './listen.js';
+import { createVisuals } from './visuals.js';
 
 /** @typedef {import('./config.js').Station} Station */
 
@@ -39,7 +41,13 @@ const rb = createRadioBrowser({ fetch: fetchFn });
 const noise = createStatic({ AudioContext: globalThis.AudioContext ?? globalThis.webkitAudioContext });
 const flip = createFlip();
 flip.set(saved.list(), 0, 'saved');
-const player = createPlayer({ audio, relayBase: RELAY_BASE, dead, onChange });
+// The visuals' tap on what's playing (desktop browsers), and which stations allow it.
+const tap = createTap({ audio, AudioContext: globalThis.AudioContext ?? globalThis.webkitAudioContext });
+const readable = createReadable({ store, fetch: fetchFn, onAnswer: readableAnswer });
+const relayed = (url) => url.startsWith(`${RELAY_BASE}/`);
+// With the visuals on, a stream that allows reading loads in CORS mode (the relay always does).
+const player = createPlayer({ audio, relayBase: RELAY_BASE, dead, onChange,
+  corsFor: (url) => readableMode() && (relayed(url) || readable.ok(url) === true) });
 
 // ---- App state ----
 
@@ -70,12 +78,37 @@ const liveArgs = () => ({ station: player.state.station, kind: player.state.kind
 const wide = matchMedia('(min-width: 760px) and (min-height: 500px)');
 const perPage = () => (wide.matches ? PER_PAGE_WIDE : PER_PAGE);
 
+const visuals = createVisuals({ store, tap,
+  allowed: () => wide.matches && document.visibilityState === 'visible' && player.state.kind === 'playing' });
+/** Streams load so they can be read only when the visuals could use it. */
+function readableMode() {
+  return tap.supported && wide.matches && visuals.settings.on;
+}
+let tunedAt = 0;
+/** Asks quietly whether the stations on screen allow their sound to be read, so that tuning one
+ *  later can load it that way. Only while the visuals are on. */
+function checkReadable() {
+  if (!readableMode()) return;
+  const l = app.lists.get(app.page);
+  const shown = l?.status === 'ready' ? paginate(l.stations, perPage(), app.subpage).items : [];
+  const stations = [player.state.station, ...shown, ...saved.list().slice(0, 20)].filter(Boolean);
+  readable.check(stations.flatMap((s) => streamCandidates(s, RELAY_BASE)).filter((u) => !relayed(u)));
+}
+/** A station tapped before its answer came in: once it's known to allow reading, tune it again
+ *  that way, as long as it only just started (so a long listen is never cut). */
+function readableAnswer(url, ok) {
+  const { kind, station } = player.state;
+  if (!ok || !station || tap.reading || !readableMode() || Date.now() - tunedAt > 8000) return;
+  if ((kind === 'tuning' || kind === 'playing') && streamCandidates(station, RELAY_BASE).includes(url)) player.resume();
+}
+
 /** The page itself: the right-hand window(s) on a wide screen, the whole page on a phone. */
 function mainHtml(r, list, currentUuid) {
   const live = liveArgs();
   if (r.kind === 'genres') return renderGenres(GENRES, live);
   if (r.kind === 'section') return renderSection({ section: r.section, genres: GENRES, live });
   if (r.kind === 'diag') return renderDiag(diag.list(), live);
+  if (r.kind === 'visuals') return renderVisuals({ settings: visuals.settings, supported: tap.supported && wide.matches });
   const l = app.lists.get(app.page);
   const body = l && {
     stations: l.stations, status: l.status, subpage: app.subpage, perPage: perPage(),
@@ -123,6 +156,8 @@ function render() {
   renderTop();
   renderKeys();
   updateSession();
+  checkReadable();
+  visuals.update();
 }
 
 /** After a player or song change: the ON AIR block or status line, the current row, the keys,
@@ -230,6 +265,7 @@ function onChange({ kind, station }) {
   diag.note('state', `${kind} ${station ? displayName(station) : ''}`);
   if (kind === 'playing' || kind === 'unavailable' || kind === 'off' || kind === 'lost') noise.stop();
   refreshLive();
+  visuals.update();
 }
 
 // Every tune counts a click on Radio Browser and restarts the song lookups.
@@ -241,8 +277,10 @@ function tuned(station) {
 
 function tuneTo(station) {
   app.song = null;
+  tunedAt = Date.now();
   player.tune(station);
   tuned(station);
+  checkReadable();
 }
 
 /** PREV/NEXT, the arrow keys and the car's buttons. Static is started here, not from onChange,
@@ -430,6 +468,7 @@ function applyTheme() {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#000000' : '#ffffff');
   document.querySelector('meta[name=color-scheme]')?.setAttribute('content', dark ? 'dark' : 'light');
+  visuals?.repaint(); // the visuals' canvases take the new colours in this same frame
 }
 
 /** The moon/sun key. Rings spread out from the key itself, and the screen swings between light
@@ -444,6 +483,20 @@ function toggleTheme() {
   const key = hdr.querySelector('[data-theme-toggle]')?.getBoundingClientRect();
   const origin = key ? { x: key.left + key.width / 2, y: key.top + key.height / 2 } : { x: innerWidth, y: 0 };
   ditherSwap({ origin, apply: () => { applyTheme(); turning = false; } });
+}
+
+// ---- Visuals ----
+
+/** A switch on page 500. Turning the visuals on while a station plays tunes it again so it can
+ *  be read, when it's known to allow that; an unknown one is asked first. */
+function toggleVisual(k) {
+  visuals.toggle(k);
+  if (k === 'on' && visuals.settings.on && player.state.kind === 'playing' && !tap.reading) {
+    tunedAt = Date.now();
+    const urls = streamCandidates(player.state.station, RELAY_BASE);
+    if (urls.some((u) => relayed(u) || readable.ok(u) === true)) player.resume();
+  }
+  render();
 }
 
 // ---- Engineering log ----
@@ -513,6 +566,7 @@ function onClick(e) {
   else if (d.page) goTo(Number(d.page));
   else if (d.sub) changeSub(d.sub === 'next' ? 1 : -1);
   else if (d.key) pressKey(d.key);
+  else if (d.viz) toggleVisual(d.viz);
   else if (d.diag) diagKey(d.diag, el);
 }
 pageEl.addEventListener('click', onClick);
@@ -622,8 +676,10 @@ applyTheme();
 render();
 // Crossing the wide-screen width changes the stations per subpage; the subpage is clamped to fit.
 try { wide.addEventListener('change', render); } catch { /* an older browser keeps its first layout */ }
+visuals.update();
 setInterval(renderTop, 15000);
 document.addEventListener('visibilitychange', () => {
   diag.note('page', document.visibilityState);
   if (document.visibilityState === 'visible') renderTop(); // timers are throttled in the background
+  visuals.update();
 });

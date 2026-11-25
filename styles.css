@@ -162,6 +162,7 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
   background: repeating-linear-gradient(to bottom, var(--ink) 0 2px, transparent 2px 4px);
 }
 .tbar span {
+  position: relative;
   max-width: calc(100% - 2em);
   padding: 0 .6em;
   background: var(--paper);
@@ -356,6 +357,61 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 .find input::placeholder { color: var(--ink); opacity: .6; }
 .find input::-webkit-search-decoration,
 .find input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* ---- Visuals: page 500, and the layers that move with the music (js/visuals.js) ---- */
+
+.idx.viz .row .n { width: 2.2em; }
+.idx.viz .row .nm { flex: none; min-width: 5.5em; font-weight: 700; }
+.idx.viz .row .what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: .85em; }
+.idx.viz .row[aria-pressed="false"] .n { text-decoration: line-through; }
+.viz-status { padding: .55em .9em; border-bottom: 1px solid var(--ink); }
+.lab { display: block; width: 100%; height: auto; padding: .9em; image-rendering: pixelated; }
+.lab-key { padding: 0 .9em .9em; font-size: .85em; line-height: 1.4; }
+
+/* Mast: the inner arcs light at a moderate level, the outer ones when loud; the light on top
+   blinks on a beat. Without the visuals, all of it shows. */
+#hdr .mast[data-level="0"] .a1, #hdr .mast[data-level="0"] .a2, #hdr .mast[data-level="1"] .a2,
+#hdr .mast[data-beat] .tip { visibility: hidden; }
+
+/* Title bars: the stripes give way to strings on a canvas that reaches 56px above the bar
+   (ESCAPE in js/visuals.js), so a big swing flies out of the bar and past the window's edge.
+   The title stays on top of them. */
+.tbar { position: relative; }
+.tbar canvas.strings { position: absolute; left: 0; top: -56px; z-index: 2; width: 100%; height: calc(100% + 56px); pointer-events: none; }
+.viz-bars .tbar { background: none; }
+.tbar span { z-index: 3; }
+
+/* Windows: their frames, fill and shadows are drawn on a canvas under them (js/visuals.js), so
+   the dotted desktop moves from the page to the screen behind it, and the windows' own border,
+   fill and shadow step aside (the border keeps its width, so nothing inside moves). */
+.viz-boxes #screen {
+  position: relative;
+  background-color: var(--paper);
+  background-image:
+    conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0),
+    conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0);
+  background-position: 0 0, 2px 2px;
+  background-size: 4px 4px;
+}
+.viz-boxes #page { position: relative; z-index: 1; background: none; }
+.viz-boxes .win { background: transparent; border-color: transparent; box-shadow: none; }
+#screen > canvas.boxes { position: absolute; left: 0; z-index: 0; pointer-events: none; }
+
+/* Now Playing's trip: in colour (the only colour anywhere: marigold, cream, blush, sage and coral),
+   on a canvas laid over the window and above the light/dark switch's overlay (z-index 10), which
+   would otherwise flip its colours. It leaves holes for the words, which sit on paper. */
+body > canvas.trip { position: fixed; z-index: 11; pointer-events: none; image-rendering: pixelated; }
+.viz-trip .onair .air-name,
+.viz-trip .onair .air-meta,
+.viz-trip .onair .air-song:not(:empty) {
+  width: fit-content;
+  max-width: calc(100% + .6em);
+  margin-left: -.3em;
+  padding: 0 .3em;
+  background: var(--paper);
+}
+.viz-trip .onair .air-name { flex: 0 1 auto; }
+.viz-trip .onair .star { background: var(--paper); }
 
 /* ---- Engineering log (999) ---- */
 
