@@ -79,11 +79,16 @@ export function streamCandidates(station, relayBase) {
   return onBareIp(station.url) ? relay : [https, ...relay];
 }
 
-/** The first genre that matches, skipping broad ones (ROCK, POP…) while a narrower one does. */
+/** A tag as a label: "post-hardcore" → "Post-Hardcore", "r&b" → "R&B". */
+export function titleCase(s) {
+  return String(s).replace(/(^|[\s\-/&(])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+/** The first genre that matches, skipping broad ones (Rock, Pop…) while a narrower one does. */
 export function shortTag(station, genres) {
   const fits = (g) => g.tags.some((t) => station.tags.includes(t));
   const g = genres.find((x) => !x.broad && fits(x)) ?? genres.find((x) => x.broad && fits(x));
-  return g ? g.label : (station.tags[0] ?? '').toUpperCase();
+  return g ? g.label : titleCase(station.tags[0] ?? '');
 }
 
 export function prepareList(raws, { canPlay, dead, genre }) {

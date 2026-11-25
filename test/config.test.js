@@ -8,7 +8,7 @@ test('the only preset is Fluid Radio; the old ones are retired', () => {
 });
 test('the first genre pages keep 210..228, in order', () => {
   assert.deepEqual(GENRES.slice(0, 19).map((g) => g.page), Array.from({ length: 19 }, (_, i) => 210 + i));
-  assert.deepEqual(GENRES.slice(0, 3).map((g) => g.label), ['NOISE ROCK', 'NOISE', 'SLUDGE']);
+  assert.deepEqual(GENRES.slice(0, 3).map((g) => g.label), ['Noise Rock', 'Noise', 'Sludge']);
 });
 test('genre pages are unique, rising, within 210..299, with labels and tags', () => {
   const pages = GENRES.map((g) => g.page);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad } from '../js/render.js';
+import { escapeHtml, renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderFastext, renderSearch, renderDiag, renderPad } from '../js/render.js';
 import { GENRES, SECTIONS } from '../js/config.js';
 
 // The stations that used to be the presets, kept as fixtures.
@@ -22,9 +22,9 @@ test('renderList escapes station names and tags', () => {
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
 });
-test('header shows page, name and a zero-padded clock', () => {
+test('header shows name, page, date and a zero-padded clock', () => {
   const html = renderHeader(100, new Date(2026, 9, 22, 7, 5));
-  assert.ok(html.includes('P100') && html.includes('RADIOTEXT') && html.includes('07:05'));
+  assert.ok(html.includes('Page 100') && html.includes('Radiotext') && html.includes('Thu 22 Oct') && html.includes('07:05'));
 });
 test('home lists saved stations as pages 101.. and marks the current one', () => {
   const html = renderHome({ onAir: { station: STATIONS[1], kind: 'playing', song: null, saved: true }, saved: STATIONS, currentUuid: STATIONS[1].uuid });
@@ -39,50 +39,50 @@ test('the engineering log lists notes newest first, escaped, with copy and clear
   assert.ok(html.includes('off &lt;b&gt;X&lt;/b&gt;') && !html.includes('<b>'));
   assert.ok(html.includes('data-diag="copy"') && html.includes('data-diag="clear"'));
   assert.ok(html.includes('id="status"'));
-  assert.ok(renderDiag([], {}).includes('NOTHING LOGGED YET'));
+  assert.ok(renderDiag([], {}).includes('Nothing logged yet'));
 });
 test('on-air status lines follow the player state', () => {
-  assert.ok(renderOnAir({ station: null, kind: 'off', song: null, saved: false }).includes('OFF AIR — PRESS PLAY'));
-  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'retrying', song: null, saved: true }).includes('NO SIGNAL — RETRYING'));
-  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'lost', song: null, saved: true }).includes('NO SIGNAL — PRESS PLAY'));
-  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'unavailable', song: null, saved: true }).includes('PAGE NOT AVAILABLE'));
+  assert.ok(renderOnAir({ station: null, kind: 'off', song: null, saved: false }).includes('Off air — press Play'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'retrying', song: null, saved: true }).includes('No signal — retrying'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'lost', song: null, saved: true }).includes('No signal — press Play'));
+  assert.ok(renderOnAir({ station: STATIONS[0], kind: 'unavailable', song: null, saved: true }).includes('Page not available'));
   assert.ok(renderOnAir({ station: STATIONS[1], kind: 'playing', song: 'Tulus - 09 Sabbat', saved: true }).includes('Tulus - 09 Sabbat'));
 });
 test('lists show stars, subpages and states', () => {
   const st = (uuid) => ({ uuid, name: uuid, tags: ['noise'], country: 'DE', votes: 1, bitrate: 128 });
   const stations = Array.from({ length: 9 }, (_, i) => st('s' + i));
   const html = renderList({ page: 211, title: 'NOISE', stations, subpage: 1, savedUuids: new Set(['s0']), currentUuid: null, from: 'genre', status: 'ready' });
-  assert.ok(html.includes('1/2') && html.includes('data-sub="next"'));
+  assert.ok(html.includes('1 of 2') && html.includes('data-sub="next"'));
   assert.match(html, /data-star="s0"[^>]*>★/); assert.match(html, /data-star="s1"[^>]*>☆/);
-  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'loading' }).includes('SEARCHING…'));
-  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'error' }).includes('PAGE NOT AVAILABLE'));
-  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'ready' }).includes('NO STATIONS FOUND'));
+  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'loading' }).includes('Searching…'));
+  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'error' }).includes('Page not available'));
+  assert.ok(renderList({ page: 211, title: 'NOISE', stations: [], subpage: 1, savedUuids: new Set(), currentUuid: null, from: 'genre', status: 'ready' }).includes('No stations found'));
 });
 test('search keeps the escaped query in the box', () => {
   assert.ok(renderSearch({ query: '"><script>', list: null }).includes('value="&quot;&gt;&lt;script&gt;"'));
 });
 test('fastext labels follow page and play state', () => {
   const home = renderFastext({ page: 100, playing: false });
-  for (const l of ['◀ PREV', '▶ PLAY', 'NEXT ▶', 'BROWSE']) assert.ok(home.includes(l));
+  for (const l of ['Prev', 'Play', 'Next', 'Browse']) assert.ok(home.includes(`<span>${l}</span>`), l);
   const other = renderFastext({ page: 300, playing: true, up: 100 });
-  assert.ok(other.includes('■ STOP') && other.includes('HOME'));
+  assert.ok(other.includes('<span>Stop</span>') && other.includes('<span>Home</span>'));
   const genre = renderFastext({ page: 252, playing: false, up: 202 });
-  assert.ok(genre.includes('>INDEX<') && genre.includes('aria-label="Back to page 202"'));
+  assert.ok(genre.includes('<span>Index</span>') && genre.includes('aria-label="Back to page 202"'));
   for (const k of ['prev', 'play', 'next', 'browse']) assert.ok(home.includes(`data-key="${k}"`));
 });
 
-// Genre, genres and search pages have no ON AIR block, so a station that won't start says so here.
-test('the status line shows the tuned station with the ON AIR state text and lamp', () => {
+// On a phone, genre, genres and search pages have no Now Playing window, so a station that won't start says so here.
+test('the status line shows the tuned station with the Now Playing state text and lamp', () => {
   const radcap = STATIONS[2];
-  for (const [kind, lamp, text] of [['tuning', 'busy', 'TUNING…'], ['retrying', 'busy', 'NO SIGNAL — RETRYING'],
-    ['lost', 'bad', 'NO SIGNAL — PRESS PLAY'], ['unavailable', 'bad', 'PAGE NOT AVAILABLE'], ['off', 'off', 'OFF AIR — PRESS PLAY']]) {
+  for (const [kind, lamp, text] of [['tuning', 'busy', 'Tuning…'], ['retrying', 'busy', 'No signal — retrying'],
+    ['lost', 'bad', 'No signal — press Play'], ['unavailable', 'bad', 'Page not available'], ['off', 'off', 'Off air — press Play']]) {
     const html = renderStatus({ station: radcap, kind, song: 'Old Song' });
     assert.match(html, /^<p class="status" id="status">/, kind);
     assert.ok(html.includes(`<span class="lamp ${lamp}">${text}</span>`), kind);
     assert.ok(html.includes('RadCap Noise Rock') && !html.includes('Old Song'), kind);
   }
   const live = renderStatus({ station: radcap, kind: 'playing', song: 'Tulus - 09 Sabbat' });
-  assert.ok(live.includes('<span class="lamp live">ON AIR</span>') && live.includes('Tulus - 09 Sabbat') && !live.includes('RadCap'));
+  assert.ok(live.includes('<span class="lamp live">On air</span>') && live.includes('Tulus - 09 Sabbat') && !live.includes('RadCap'));
   assert.ok(renderStatus({ station: radcap, kind: 'playing', song: null }).includes('RadCap Noise Rock'));
 });
 test('before any tune the status line is kept, empty, so the rows never move', () => {
@@ -102,7 +102,7 @@ test('genre, genres and search pages carry the status line under the title', () 
     renderSection({ section: SECTIONS[1], genres: GENRES, live }), renderSearch({ query: 'noise', list, live })];
   for (const html of pages) {
     const at = html.indexOf('<p class="status" id="status">');
-    assert.ok(at > html.indexOf('class="band"') && html.includes('NO SIGNAL — RETRYING'));
+    assert.ok(at > html.indexOf('class="tbar"') && html.includes('No signal — retrying'));
     assert.ok(at < Math.min(...['<ul', '<form', '<p class="msg'].map((t) => html.indexOf(t)).filter((i) => i >= 0)));
   }
   assert.ok(!renderHome({ onAir: { ...live, saved: true }, saved: STATIONS, currentUuid: null }).includes('id="status"'));
@@ -111,32 +111,68 @@ test('page 200 lists the popular genres, then links to every genre index', () =>
   const html = renderGenres(GENRES, {}, SECTIONS, [230, 250, 290]);
   const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
   assert.deepEqual(pages, [230, 250, 290, 201, 202, 203, 204, 205, 206, 207]);
-  assert.ok(html.indexOf('<h2 class="sec">POPULAR</h2>') < html.indexOf('data-page="230"'));
-  assert.ok(html.indexOf('<h2 class="sec">ALL GENRES</h2>') < html.indexOf('data-page="201"'));
-  assert.ok(html.includes('JAZZ, SOUL &amp; HIP HOP') && html.includes('>UNDERGROUND<'));
+  assert.ok(html.indexOf('<span>Popular Genres</span>') < html.indexOf('data-page="230"'));
+  assert.ok(html.indexOf('<span>All Genres</span>') < html.indexOf('data-page="201"'));
+  assert.ok(html.includes('Jazz, Soul &amp; Hip Hop') && html.includes('>Underground<'));
 });
 test('a genre index page lists only its own genres, under its title', () => {
   const html = renderSection({ section: SECTIONS[1], genres: GENRES, live: {} });
   const pages = [...html.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1]));
   assert.deepEqual(pages, Array.from({ length: 12 }, (_, i) => 248 + i));
-  assert.ok(html.includes('<h1 class="dh">ELECTRONIC &amp; DANCE</h1>'));
+  assert.ok(html.includes('<h2 class="tbar"><span>Electronic &amp; Dance</span></h2>'));
   assert.ok(renderSection({ section: SECTIONS[2], genres: GENRES, live: {} }).includes('>R&amp;B<'));
   const underground = renderSection({ section: SECTIONS[6], genres: GENRES, live: {} });
   assert.deepEqual([...underground.matchAll(/data-page="(\d+)"/g)].map((m) => Number(m[1])), Array.from({ length: 20 }, (_, i) => 210 + i));
 });
 test('the header page number is a key that opens the keypad', () => {
   const shut = renderHeader(212, new Date(2026, 10, 2, 8, 30));
-  assert.match(shut, /^<button class="pg" data-pad [^>]*aria-expanded="false">P212<\/button>/);
+  assert.match(shut, /<button class="pg" data-pad [^>]*aria-expanded="false">Page 212<\/button>/);
   const open = renderHeader('2__', new Date(2026, 10, 2, 8, 30), { padOpen: true });
-  assert.match(open, /^<button class="pg on" data-pad [^>]*aria-expanded="true">P2__<\/button>/);
+  assert.match(open, /<button class="pg on" data-pad [^>]*aria-expanded="true">Page 2__<\/button>/);
 });
-test('the keypad has 0-9, DEL and CLOSE, and shows the number so far or a miss', () => {
+test('the keypad has 0-9, Del and Close, and shows the number so far or a miss', () => {
   assert.equal(renderPad({ open: false }), '<div class="pad" id="pad" hidden></div>');
   const html = renderPad({ open: true, digits: '25' });
   const digits = [...html.matchAll(/data-digit="(\d)"/g)].map((m) => m[1]);
   assert.deepEqual(digits, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
   assert.ok(html.includes('data-padkey="del"') && html.includes('data-padkey="close"'));
-  assert.ok(html.includes('P25_') && !html.includes(' hidden'));
-  const miss = renderPad({ open: true, digits: '', note: 'NO PAGE 248' });
-  assert.ok(miss.includes('<span class="lamp bad">NO PAGE 248</span>') && !miss.includes('P___'));
+  assert.ok(html.includes('Page 25_') && !html.includes(' hidden'));
+  const miss = renderPad({ open: true, digits: '', note: 'No page 248' });
+  assert.ok(miss.includes('<span class="lamp bad">No page 248</span>') && !miss.includes('Page ___'));
+});
+
+test('a wide screen gets more stations per subpage when asked', () => {
+  const st = (uuid) => ({ uuid, name: uuid, tags: ['noise'], country: 'DE', votes: 1, bitrate: 128 });
+  const stations = Array.from({ length: 20 }, (_, i) => st('s' + i));
+  const args = { page: 211, title: 'Noise', stations, subpage: 1, savedUuids: new Set(), currentUuid: null, from: '211', status: 'ready' };
+  assert.equal([...renderList(args).matchAll(/data-tune=/g)].length, 8);
+  const wide = renderList({ ...args, perPage: 14 });
+  assert.equal([...wide.matchAll(/data-tune=/g)].length, 14);
+  assert.ok(wide.includes('1 of 2') && wide.includes('class="thead"'));
+});
+test('station rows show the genre and one more tag, in title case', () => {
+  const html = renderList({ page: 210, title: 'Noise Rock', stations: [STATIONS[2]], subpage: 1, savedUuids: new Set(), currentUuid: null, from: '210', status: 'ready' });
+  assert.ok(html.includes('<span class="tg">Noise Rock · Rock</span>'));
+});
+test('the rail is Now Playing and the saved stations, or a hint when none are saved', () => {
+  const onAir = { station: STATIONS[0], kind: 'playing', song: 'Song', saved: true };
+  const html = renderRail({ onAir, saved: STATIONS, currentUuid: STATIONS[0].uuid });
+  assert.ok(html.indexOf('<span>Now Playing</span>') < html.indexOf('id="onair"'));
+  assert.ok(html.indexOf('<span>Saved Stations</span>') < html.indexOf('data-from="saved"'));
+  assert.ok(renderRail({ onAir, saved: [], currentUuid: null }).includes('Star a station to save it here.'));
+});
+test('the desk marks home and an index column', () => {
+  assert.equal(renderDesk({ rail: 'R', main: 'M', home: true }), '<div class="desk home"><div class="rail">R</div><div class="main">M</div></div>');
+  assert.equal(renderDesk({ rail: 'R', index: 'I', main: 'M' }), '<div class="desk has-idx"><div class="rail">R</div><div class="idxcol">I</div><div class="main">M</div></div>');
+  assert.ok(renderHome({ onAir: { station: null, kind: 'off' }, saved: [], currentUuid: null }).startsWith('<div class="desk home">'));
+});
+test('the index column is the page one level up, with this page marked', () => {
+  const genre = renderIndex(212);
+  assert.ok(genre.includes('<span>Underground</span>'));
+  assert.match(genre, /class="row here" data-page="212" aria-current="page"/);
+  assert.equal([...genre.matchAll(/aria-current/g)].length, 1);
+  const section = renderIndex(207);
+  assert.ok(section.includes('<span>All Genres</span>') && !section.includes('Popular'));
+  assert.match(section, /class="row here" data-page="207"/);
+  for (const n of [100, 200, 300, 999]) assert.equal(renderIndex(n), '', String(n));
 });

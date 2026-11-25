@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toStation, displayName, baseName, codecMime, isPlayable, isExcluded, dedupe, httpsVariant, streamCandidates, shortTag, prepareList } from '../js/stations.js';
+import { toStation, displayName, baseName, codecMime, isPlayable, isExcluded, dedupe, httpsVariant, streamCandidates, shortTag, titleCase, prepareList } from '../js/stations.js';
 import { GENRES } from '../js/config.js';
 
 const raw = (o) => ({ stationuuid: 'u1', name: 'X', url_resolved: 'https://a/x', codec: 'MP3', bitrate: 128, tags: 'noise rock', countrycode: 'DE', votes: 5, hls: 0, homepage: '', ...o });
@@ -72,17 +72,17 @@ test('streamCandidates skips https on a bare IP address, which never has a valid
   assert.deepEqual(streamCandidates(ip6, null), []);
 });
 test('shortTag prefers the first matching genre label', () => {
-  assert.equal(shortTag({ tags: ['garage punk', 'indie rock', 'noise rock', 'post-punk', 'punk'] }, GENRES), 'NOISE ROCK');
-  assert.equal(shortTag({ tags: ['black metal', 'doom metal', 'post-punk', 'progressive rock', 'sludge'] }, GENRES), 'SLUDGE');
-  assert.equal(shortTag({ tags: ['jazz'] }, GENRES), 'JAZZ');
+  assert.equal(shortTag({ tags: ['garage punk', 'indie rock', 'noise rock', 'post-punk', 'punk'] }, GENRES), 'Noise Rock');
+  assert.equal(shortTag({ tags: ['black metal', 'doom metal', 'post-punk', 'progressive rock', 'sludge'] }, GENRES), 'Sludge');
+  assert.equal(shortTag({ tags: ['jazz'] }, GENRES), 'Jazz');
   assert.equal(shortTag({ tags: [] }, GENRES), '');
-  assert.equal(shortTag({ tags: ['field recordings'] }, GENRES), 'FIELD RECORDINGS');
+  assert.equal(shortTag({ tags: ['field recordings'] }, GENRES), 'Field Recordings');
 });
 test('shortTag passes over broad genres while a narrower one matches', () => {
-  assert.equal(shortTag({ tags: ['rock', 'classic rock'] }, GENRES), 'CLASSIC ROCK');
-  assert.equal(shortTag({ tags: ['electronic', 'techno'] }, GENRES), 'TECHNO');
-  assert.equal(shortTag({ tags: ['jazz', 'free jazz'] }, GENRES), 'FREE JAZZ');
-  assert.equal(shortTag({ tags: ['pop', 'rock'] }, GENRES), 'ROCK');
+  assert.equal(shortTag({ tags: ['rock', 'classic rock'] }, GENRES), 'Classic Rock');
+  assert.equal(shortTag({ tags: ['electronic', 'techno'] }, GENRES), 'Techno');
+  assert.equal(shortTag({ tags: ['jazz', 'free jazz'] }, GENRES), 'Free Jazz');
+  assert.equal(shortTag({ tags: ['pop', 'rock'] }, GENRES), 'Rock');
 });
 test('prepareList filters, dedupes and sorts by votes', () => {
   const noise = GENRES.find((g) => g.page === 211);
@@ -92,4 +92,12 @@ test('prepareList filters, dedupes and sorts by votes', () => {
     raw({ stationuuid: '3', name: 'Culture Failure', tags: 'ambient,noise', votes: 391, codec: 'AAC' }),
     raw({ stationuuid: '4', name: 'CIA Radio', tags: 'noise,industrial', votes: 122 })];
   assert.deepEqual(prepareList(raws, { canPlay: mp3, dead: none, genre: noise }).map((s) => s.uuid), ['4', '2']);
+});
+
+test('titleCase capitalises each word and each part of a hyphenated or joined word', () => {
+  assert.equal(titleCase('post-hardcore'), 'Post-Hardcore');
+  assert.equal(titleCase('r&b'), 'R&B');
+  assert.equal(titleCase('80s'), '80s');
+  assert.equal(titleCase("rock'n'roll"), "Rock'n'roll");
+  assert.equal(titleCase('field recordings'), 'Field Recordings');
 });

@@ -1,6 +1,6 @@
 // Radiotext: wires the pages, the fastext keys, the keyboard and the lock screen to the player.
 // Nothing plays on load: browsers need a tap (PLAY or a station row) before audio can start.
-import { RELAY_BASE, PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, PER_PAGE, POLL_MS, STATIC_ENABLED } from './config.js';
+import { RELAY_BASE, PRESETS, RETIRED_PRESETS, GENRES, SECTIONS, PER_PAGE, PER_PAGE_WIDE, POLL_MS, STATIC_ENABLED } from './config.js';
 import { prepareList, displayName } from './stations.js';
 import { safeStorage, createSaved, createDead, dropRetired } from './saved.js';
 import { createFlip } from './fliplist.js';
@@ -9,7 +9,7 @@ import { createRadioBrowser } from './radiobrowser.js';
 import { sourceFor, fetchSong } from './nowplaying.js';
 import { createPlayer } from './player.js';
 import { createStatic } from './static.js';
-import { renderHeader, renderOnAir, renderStatus, renderHome, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad } from './render.js';
+import { renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
 import { createDiag, diagText } from './diag.js';
 
@@ -62,33 +62,56 @@ const liveArgs = () => ({ station: player.state.station, kind: player.state.kind
 
 // ---- Rendering ----
 
+// A wide screen (the same width as in styles.css) puts the saved stations beside the page, and
+// gets more stations per subpage.
+const wide = matchMedia('(min-width: 760px)');
+const perPage = () => (wide.matches ? PER_PAGE_WIDE : PER_PAGE);
+
+/** The page itself: the right-hand window(s) on a wide screen, the whole page on a phone. */
+function mainHtml(r, list, currentUuid) {
+  const live = liveArgs();
+  if (r.kind === 'genres') return renderGenres(GENRES, live);
+  if (r.kind === 'section') return renderSection({ section: r.section, genres: GENRES, live });
+  if (r.kind === 'diag') return renderDiag(diag.list(), live);
+  const l = app.lists.get(app.page);
+  const body = l && {
+    stations: l.stations, status: l.status, subpage: app.subpage, perPage: perPage(),
+    savedUuids: new Set(list.map((s) => s.uuid)), currentUuid, from: String(app.page),
+  };
+  if (r.kind === 'search') return renderSearch({ query: app.query, list: body ?? null, live });
+  return renderList({ page: app.page, title: r.genre.label, live, ...(body ?? { stations: [], status: 'loading',
+    subpage: 1, savedUuids: new Set(), currentUuid, from: String(app.page) }) });
+}
+
 function pageHtml() {
   const list = saved.list();
   const station = shown();
   const currentUuid = station?.uuid ?? null;
+  const onAir = onAirArgs(station);
   const r = route(app.page, { savedCount: list.length, genres: GENRES, sections: SECTIONS });
-  const live = liveArgs();
-  if (r?.kind === 'genres') return renderGenres(GENRES, live);
-  if (r?.kind === 'section') return renderSection({ section: r.section, genres: GENRES, live });
-  if (r?.kind === 'diag') return renderDiag(diag.list(), live);
-  if (r?.kind === 'genre' || r?.kind === 'search') {
-    const l = app.lists.get(app.page);
-    const body = l && {
-      stations: l.stations, status: l.status, subpage: app.subpage,
-      savedUuids: new Set(list.map((s) => s.uuid)), currentUuid, from: String(app.page),
-    };
-    if (r.kind === 'search') return renderSearch({ query: app.query, list: body ?? null, live });
-    return renderList({ page: app.page, title: r.genre.label, live, ...(body ?? { stations: [], status: 'loading',
-      subpage: 1, savedUuids: new Set(), currentUuid, from: String(app.page) }) });
-  }
-  return renderHome({ onAir: onAirArgs(station), saved: list, currentUuid });
+  if (!r || r.kind === 'home' || r.kind === 'saved') return renderHome({ onAir, saved: list, currentUuid });
+  return renderDesk({
+    rail: renderRail({ onAir, saved: list, currentUuid }),
+    index: renderIndex(app.page),
+    main: mainHtml(r, list, currentUuid),
+  });
 }
 
-/** Re-renders the whole page. Text typed into the search box survives it. */
+/**
+ * Re-renders the whole page. Text typed into the search box survives it, and so does where each
+ * list was scrolled to (on a wide screen the lists scroll inside their windows), as long as the
+ * same list comes back. An index list seen for the first time is scrolled to the open page.
+ */
 function render() {
   const input = pageEl.querySelector('input[name=q]');
   const typed = input && { value: input.value, focused: document.activeElement === input };
+  const scrolled = new Map([...pageEl.querySelectorAll('[data-scroll]')].map((el) => [el.dataset.scroll, el.scrollTop]));
   pageEl.innerHTML = pageHtml();
+  for (const el of pageEl.querySelectorAll('[data-scroll]')) {
+    const top = scrolled.get(el.dataset.scroll);
+    if (top) el.scrollTop = top;
+    else if (top === undefined) el.querySelector('.here')?.scrollIntoView({ block: 'nearest' });
+  }
   const again = typed && pageEl.querySelector('input[name=q]');
   if (again) {
     again.value = typed.value;
@@ -233,7 +256,7 @@ function flipBy(step) {
 function followFlip(station) {
   if (flip.source() !== String(app.page)) return;
   const i = app.lists.get(app.page)?.stations.findIndex((s) => s.uuid === station.uuid) ?? -1;
-  const sub = Math.floor(i / PER_PAGE) + 1;
+  const sub = Math.floor(i / perPage()) + 1;
   if (i < 0 || sub === app.subpage) return;
   app.subpage = sub;
   render();
@@ -357,7 +380,7 @@ function runSearch(q) {
 function changeSub(step) {
   const l = app.lists.get(app.page);
   if (!l) return;
-  app.subpage = paginate(l.stations, PER_PAGE, app.subpage + step).subpage;
+  app.subpage = paginate(l.stations, perPage(), app.subpage + step).subpage;
   render();
   window.scrollTo(0, 0);
 }
@@ -408,7 +431,7 @@ function diagKey(action, button) {
     return;
   }
   const copy = navigator.clipboard?.writeText(diagText(diag.list())) ?? Promise.reject(new Error('no clipboard'));
-  copy.then(() => { button.textContent = 'COPIED'; }, () => { button.textContent = 'COPY FAILED'; });
+  copy.then(() => { button.textContent = 'Copied'; }, () => { button.textContent = 'Copy failed'; });
 }
 
 // What the <audio> element reports, with the flags that tell an outside pause from an error or
@@ -511,7 +534,7 @@ function typeDigit(d) {
   const n = Number(digits);
   clearDigits();
   if (goTo(n)) return; // goTo closes the keypad
-  if (padOpen) padNote = `NO PAGE ${n}`;
+  if (padOpen) padNote = `No page ${n}`;
   renderTop();
   renderPadNow();
 }
@@ -567,6 +590,8 @@ addEventListener('popstate', (e) => {
   if (n) goTo(n, { push: false });
 });
 render();
+// Crossing the wide-screen width changes the stations per subpage; the subpage is clamped to fit.
+try { wide.addEventListener('change', render); } catch { /* an older browser keeps its first layout */ }
 setInterval(renderTop, 15000);
 document.addEventListener('visibilitychange', () => {
   diag.note('page', document.visibilityState);

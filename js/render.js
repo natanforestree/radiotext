@@ -1,8 +1,9 @@
-// HTML string renderers for the Teletext pages. Every API-derived string goes through escapeHtml.
-import { displayName, shortTag } from './stations.js';
-import { savedPage, paginate, genresIn } from './pages.js';
+// HTML string renderers for the pages: one-bit windows on a dithered desktop. Every
+// API-derived string goes through escapeHtml.
+import { displayName, shortTag, titleCase } from './stations.js';
+import { savedPage, paginate, genresIn, parentPage } from './pages.js';
 import { GENRES, SECTIONS, FEATURED, PER_PAGE } from './config.js';
-import { mosaicSvg, ANTENNA, MOSAIC_COLORS } from './mosaic.js';
+import { mosaicSvg, ANTENNA } from './mosaic.js';
 import { clockTime } from './diag.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -12,23 +13,35 @@ export function escapeHtml(s) {
 }
 
 const pad2 = (n) => String(n).padStart(2, '0');
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Status line and lamp colour for each player state. 'playing' shows the song instead. */
+/** Pixel icons, drawn in the text colour, for the symbols the font lacks (◀ ▶ ■ ♪). */
+const pixel = (w, d) => `<svg class="ic" viewBox="0 0 ${w} 7" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="currentColor" d="${d}"/></svg>`;
+const ICON = {
+  prev: pixel(4, 'M3 0h1v7H3zM2 1h1v5H2zM1 2h1v3H1zM0 3h1v1H0z'),
+  next: pixel(4, 'M0 0h1v7H0zM1 1h1v5H1zM2 2h1v3H2zM3 3h1v1H3z'),
+  stop: pixel(7, 'M1 1h5v5H1z'),
+  note: pixel(6, 'M3 0h2v1H3zM5 1h1v1H5zM3 1h1v3H3zM1 4h3v1H1zM0 5h4v1H0zM1 6h2v1H1z'),
+};
+/** The mast from the icons, in the text colour, beside the name in the top bar. */
+const MAST = mosaicSvg(ANTENNA, { R: 'currentColor', C: 'currentColor', W: 'currentColor' });
+
+/** Status line and lamp for each player state. 'playing' shows the song instead. */
 const STATES = {
-  off: { text: 'OFF AIR — PRESS PLAY', lamp: 'off' },
-  tuning: { text: 'TUNING…', lamp: 'busy' },
-  playing: { text: 'ON AIR', lamp: 'live' },
-  retrying: { text: 'NO SIGNAL — RETRYING', lamp: 'busy' },
-  lost: { text: 'NO SIGNAL — PRESS PLAY', lamp: 'bad' },
-  unavailable: { text: 'PAGE NOT AVAILABLE', lamp: 'bad' },
+  off: { text: 'Off air — press Play', lamp: 'off' },
+  tuning: { text: 'Tuning…', lamp: 'busy' },
+  playing: { text: 'On air', lamp: 'live' },
+  retrying: { text: 'No signal — retrying', lamp: 'busy' },
+  lost: { text: 'No signal — press Play', lamp: 'bad' },
+  unavailable: { text: 'Page not available', lamp: 'bad' },
 };
 
 const tagLabel = (station) => escapeHtml(shortTag(station, GENRES));
 
-/** The page title band: blue, with a yellow double-height title. */
-function masthead(title, { mast = false } = {}) {
-  const art = mast ? `<div class="mast">${mosaicSvg(ANTENNA, MOSAIC_COLORS)}</div>` : '';
-  return `<div class="band"><h1 class="dh">${escapeHtml(title)}</h1>${art}</div>`;
+/** A window: a striped title bar over its contents. */
+function win(title, body, cls = '') {
+  return `<section class="win${cls ? ` ${cls}` : ''}"><h2 class="tbar"><span>${escapeHtml(title)}</span></h2>${body}</section>`;
 }
 
 function starButton(station, saved) {
@@ -37,71 +50,74 @@ function starButton(station, saved) {
     + `aria-pressed="${saved}" aria-label="Save ${name}">${saved ? '★' : '☆'}</button>`;
 }
 
-/** An index row: page number, label, dot leaders, right-hand tag. */
-function indexRow({ n, label, tag, attrs, cur = false }) {
-  return `<li><button class="row${cur ? ' cur' : ''}" ${attrs}>`
-    + `<span class="n">${n}</span><span class="fit"><span class="nm">${label}</span>`
-    + `<span class="end"><span class="lead" aria-hidden="true"></span><span class="t">${tag}</span></span></span></button></li>`;
+/** An index row: page number, label, right-hand tag. `here` marks the page open beside it. */
+function indexRow({ n, label, tag, attrs, cur = false, here = false }) {
+  return `<li><button class="row${cur ? ' cur' : ''}${here ? ' here' : ''}" ${attrs}${here ? ' aria-current="page"' : ''}>`
+    + `<span class="n">${n}</span><span class="nm">${label}</span><span class="t">${tag}</span></button></li>`;
 }
 
-/** The header row. The page number is a button: it opens the keypad for typing a page number. */
+/** The top bar. The page number is a button: it opens the keypad for typing a page number. */
 export function renderHeader(page, now, { padOpen = false } = {}) {
-  return `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
-    + `P${escapeHtml(page)}</button><span class="nm">RADIOTEXT</span>`
+  return `<span class="app">${MAST}<span>Radiotext</span></span>`
+    + `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
+    + `Page ${escapeHtml(page)}</button><span class="sp"></span>`
+    + `<span class="dt">${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}</span>`
     + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`;
 }
 
 /**
- * The page-number keypad, in place of the fastext keys while it's open: 0-9 like a Teletext
- * remote, DEL and CLOSE, and above them the number so far. `note` says a number had no page.
+ * The page-number keypad, in place of the bottom keys while it's open: 0-9 like a Teletext
+ * remote, Del and Close, and above them the number so far. `note` says a number had no page.
  */
 export function renderPad({ open, digits = '', note = '' }) {
   if (!open) return '<div class="pad" id="pad" hidden></div>';
   const show = note ? `<span class="lamp bad">${escapeHtml(note)}</span>`
-    : `<span class="dh">P${escapeHtml(digits.padEnd(3, '_'))}</span>`;
-  const digit = (d) => `<button class="pk" data-digit="${d}"><span class="dh">${d}</span></button>`;
+    : `<span class="pnum">Page ${escapeHtml(digits.padEnd(3, '_'))}</span>`;
+  const digit = (d) => `<button class="btn pk" data-digit="${d}">${d}</button>`;
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit).join('')
-    + '<button class="pk op" data-padkey="close" aria-label="Close the keypad"><span class="dh">CLOSE</span></button>'
+    + '<button class="btn pk op" data-padkey="close" aria-label="Close the keypad">Close</button>'
     + digit('0')
-    + '<button class="pk op" data-padkey="del" aria-label="Delete a digit"><span class="dh">DEL</span></button>';
+    + '<button class="btn pk op" data-padkey="del" aria-label="Delete a digit">Del</button>';
   return `<div class="pad" id="pad" role="group" aria-label="Page number">`
     + `<p class="pad-show" aria-live="polite">${show}</p><div class="pad-keys">${keys}</div></div>`;
 }
 
 /**
- * The ON AIR block (id="onair", so it can be re-rendered on its own). The lamp carries the state:
- * green ON AIR, yellow for tuning or retrying, red when lost or unavailable, white when off.
- * Its lines keep a fixed height, so the rows below never move while driving.
+ * The inside of the Now Playing window (id="onair", so it can be re-rendered on its own). The
+ * lamp carries the state: solid for on air or a fault, outlined while off, dashed while tuning or
+ * retrying. Its lines keep a fixed height, so nothing below moves while driving.
  */
 export function renderOnAir({ station, kind, song, saved }) {
   const state = STATES[kind] ?? STATES.off;
   const lamp = `<p class="lamp ${state.lamp}">${state.text}</p>`;
-  if (!station) return `<section class="onair" id="onair" aria-label="On air">${lamp}</section>`;
-  const songLine = kind === 'playing' && song ? `<span class="note" aria-hidden="true">♪</span> ${escapeHtml(song)}` : '';
-  return `<section class="onair" id="onair" aria-label="On air">${lamp}`
-    + `<div class="air-top"><div class="air-name"><span class="dh">${escapeHtml(displayName(station))}</span></div>`
+  if (!station) return `<div class="onair" id="onair">${lamp}</div>`;
+  const songLine = kind === 'playing' && song ? `${ICON.note}<span>${escapeHtml(song)}</span>` : '';
+  return `<div class="onair" id="onair">${lamp}`
+    + `<div class="air-top"><p class="air-name">${escapeHtml(displayName(station))}</p>`
     + `${starButton(station, saved)}</div>`
     + `<p class="air-meta"><span class="tg">${tagLabel(station)}</span> <span class="cc">${escapeHtml(station.country)}</span></p>`
     + `<p class="air-song">${songLine}</p>`
-    + '</section>';
+    + '</div>';
 }
 
 /**
- * The status line under the title on pages without the ON AIR block (id="status", so it can be
- * patched on its own): the same state text and lamp as ON AIR, then the song while one is
- * playing, else the station. Before any station is tuned the line stays, empty, so the rows
- * below don't move when one is tapped.
+ * The status line under the title of the other pages (id="status", so it can be patched on its
+ * own): the same state text and lamp as Now Playing, then the song while one is playing, else
+ * the station. Before any station is tuned the line stays, empty, so the rows below don't move
+ * when one is tapped. A wide screen hides it: Now Playing sits beside the page there.
  */
 export function renderStatus({ station = null, kind = 'off', song = null } = {}) {
   if (!station) return '<p class="status" id="status"></p>';
   const state = STATES[kind] ?? STATES.off;
   const what = kind === 'playing' && song
-    ? `<span class="sg"><span class="note" aria-hidden="true">♪</span> ${escapeHtml(song)}</span>`
+    ? `<span class="sg">${ICON.note}<span>${escapeHtml(song)}</span></span>`
     : `<span class="nm">${escapeHtml(displayName(station))}</span>`;
   return `<p class="status" id="status"><span class="lamp ${state.lamp}">${state.text}</span> ${what}</p>`;
 }
 
-export function renderHome({ onAir, saved, currentUuid }) {
+/** Now Playing and the saved stations: home on a phone, the left column of every page on a
+ *  wide screen. */
+export function renderRail({ onAir, saved, currentUuid }) {
   const rows = saved.map((s, i) => indexRow({
     n: savedPage(i),
     label: escapeHtml(displayName(s)),
@@ -109,93 +125,128 @@ export function renderHome({ onAir, saved, currentUuid }) {
     attrs: `data-tune="${escapeHtml(s.uuid)}" data-from="saved"`,
     cur: s.uuid === currentUuid,
   })).join('');
-  const list = rows ? `<ul class="idx saved">${rows}</ul>` : '<p class="msg">STAR A STATION TO SAVE IT HERE</p>';
-  const links = indexRow({ n: 200, label: 'BROWSE GENRES', tag: '»', attrs: 'data-page="200"' })
-    + indexRow({ n: 300, label: 'SEARCH', tag: '»', attrs: 'data-page="300"' })
-    + indexRow({ n: 999, label: 'ENGINEERING', tag: '»', attrs: 'data-page="999"' });
-  return masthead('RADIO', { mast: true }) + renderOnAir(onAir) + list + `<ul class="idx links">${links}</ul>`;
+  const list = rows ? `<ul class="wbody idx saved" data-scroll="saved">${rows}</ul>`
+    : '<p class="msg">Star a station to save it here.</p>';
+  return win('Now Playing', renderOnAir(onAir), 'air') + win('Saved Stations', list, 'saved-win');
+}
+
+/**
+ * The page area: the rail, then on a wide screen the index one level up (when there is one),
+ * then the page itself. A phone shows the rail on home only.
+ */
+export function renderDesk({ rail, index = '', main, home = false }) {
+  const cls = ['desk', home && 'home', index && 'has-idx'].filter(Boolean).join(' ');
+  return `<div class="${cls}"><div class="rail">${rail}</div>`
+    + (index ? `<div class="idxcol">${index}</div>` : '')
+    + `<div class="main">${main}</div></div>`;
+}
+
+export function renderHome({ onAir, saved, currentUuid }) {
+  const links = indexRow({ n: 200, label: 'Browse Genres', tag: '»', attrs: 'data-page="200"' })
+    + indexRow({ n: 300, label: 'Search', tag: '»', attrs: 'data-page="300"' })
+    + indexRow({ n: 999, label: 'Engineering', tag: '»', attrs: 'data-page="999"' });
+  return renderDesk({
+    home: true,
+    rail: renderRail({ onAir, saved, currentUuid }),
+    main: win('Pages', `<ul class="wbody idx links">${links}</ul>`, 'pages'),
+  });
 }
 
 /** Index rows that each open a page: genre pages, or the section index pages. */
-function pageRows(items) {
+function pageRows(items, { here = 0, scroll = '' } = {}) {
   const rows = items.map((p) => indexRow({
-    n: p.page, label: escapeHtml(p.label), tag: '»', attrs: `data-page="${p.page}"`,
+    n: p.page, label: escapeHtml(p.label), tag: '»', attrs: `data-page="${p.page}"`, here: p.page === here,
   })).join('');
-  return `<ul class="idx genres">${rows}</ul>`;
+  return `<ul class="wbody idx genres"${scroll ? ` data-scroll="${scroll}"` : ''}>${rows}</ul>`;
 }
 
-const heading = (text) => `<h2 class="sec">${escapeHtml(text)}</h2>`;
+function genresWindows({ genres, sections, featured, status = '', here = 0, scroll }) {
+  const popular = featured.map((n) => genres.find((g) => g.page === n)).filter(Boolean);
+  return win('Popular Genres', status + pageRows(popular, { here, scroll: `${scroll}:pop` }))
+    + win('All Genres', pageRows(sections, { here, scroll: `${scroll}:all` }));
+}
 
 /** Page 200: the popular genres, then every section's index page. */
 export function renderGenres(genres, live, sections = SECTIONS, featured = FEATURED) {
-  const popular = featured.map((n) => genres.find((g) => g.page === n)).filter(Boolean);
-  return masthead('GENRES') + renderStatus(live)
-    + heading('POPULAR') + pageRows(popular)
-    + heading('ALL GENRES') + pageRows(sections);
+  return genresWindows({ genres, sections, featured, status: renderStatus(live), scroll: 'page:200' });
 }
 
 /** Pages 201-207: one section's genres. */
 export function renderSection({ section, genres, live }) {
-  return masthead(section.label) + renderStatus(live) + pageRows(genresIn(section, genres));
+  return win(section.label, renderStatus(live) + pageRows(genresIn(section, genres), { scroll: `page:${section.page}` }));
+}
+
+/**
+ * The index column beside a page on a wide screen: the index one level up, with this page
+ * marked. A genre index gets the list of all of them; home has none.
+ */
+export function renderIndex(n, { genres = GENRES, sections = SECTIONS } = {}) {
+  const up = parentPage(n, { genres, sections });
+  if (up === 200) return win('All Genres', pageRows(sections, { here: n, scroll: 'idx:200' }));
+  const section = sections.find((s) => s.page === up);
+  return section ? win(section.label, pageRows(genresIn(section, genres), { here: n, scroll: `idx:${up}` })) : '';
 }
 
 function stationRow(s, { savedUuids, currentUuid, from }) {
   const top = shortTag(s, GENRES);
-  const second = s.tags.map((t) => t.toUpperCase()).find((t) => t !== top);
-  const tags = [top, second].filter(Boolean).map((t, i) => `<span>${i ? '· ' : ''}${escapeHtml(t)}</span>`).join('');
+  const second = s.tags.map(titleCase).find((t) => t.toLowerCase() !== top.toLowerCase());
+  const tags = [top, second].filter(Boolean).map(escapeHtml).join(' · ');
   const cur = s.uuid === currentUuid;
   return `<li class="st"><button class="row${cur ? ' cur' : ''}" data-tune="${escapeHtml(s.uuid)}" data-from="${escapeHtml(from)}">`
     + `<span class="nm">${escapeHtml(displayName(s))}</span>`
-    + `<span class="meta"><span class="tg fit">${tags}</span><span class="cc">${escapeHtml(s.country)}</span></span>`
+    + `<span class="meta"><span class="tg">${tags}</span><span class="cc">${escapeHtml(s.country)}</span></span>`
     + `</button>${starButton(s, savedUuids.has(s.uuid))}</li>`;
 }
 
-/** The list area shared by genre pages and search results (no masthead). */
-function listBody({ stations, subpage, savedUuids, currentUuid, from, status }) {
-  if (status === 'loading') return '<p class="msg"><span class="lamp busy">SEARCHING…</span></p>';
-  if (status === 'error') return '<p class="msg"><span class="lamp bad">PAGE NOT AVAILABLE</span></p>';
-  if (!stations.length) return '<p class="msg">NO STATIONS FOUND</p>';
-  const p = paginate(stations, PER_PAGE, subpage);
+/** The list area shared by genre pages and search results, under the status line. */
+function listBody({ stations, subpage, perPage = PER_PAGE, savedUuids, currentUuid, from, status }) {
+  if (status === 'loading') return '<p class="msg"><span class="lamp busy">Searching…</span></p>';
+  if (status === 'error') return '<p class="msg"><span class="lamp bad">Page not available</span></p>';
+  if (!stations.length) return '<p class="msg">No stations found.</p>';
+  const p = paginate(stations, perPage, subpage);
   const rows = p.items.map((s) => stationRow(s, { savedUuids, currentUuid, from })).join('');
+  const head = '<div class="thead" aria-hidden="true"><span>Station</span><span>Tags</span><span>Country</span></div>';
   const sub = p.subpages > 1
-    ? `<div class="sub"><button class="subk" data-sub="prev" aria-label="Previous subpage"${p.subpage === 1 ? ' disabled' : ''}><span class="dh">◀</span></button>`
-      + `<span class="subn">${p.subpage}/${p.subpages}</span>`
-      + `<button class="subk" data-sub="next" aria-label="Next subpage"${p.subpage === p.subpages ? ' disabled' : ''}><span class="dh">▶</span></button></div>`
+    ? `<div class="sub"><button class="btn subk" data-sub="prev" aria-label="Previous subpage"${p.subpage === 1 ? ' disabled' : ''}>${ICON.prev}<span>Prev page</span></button>`
+      + `<span class="subn">${p.subpage} of ${p.subpages}</span>`
+      + `<button class="btn subk" data-sub="next" aria-label="Next subpage"${p.subpage === p.subpages ? ' disabled' : ''}><span>Next page</span>${ICON.next}</button></div>`
     : '';
-  return `<ul class="stations">${rows}</ul>${sub}`;
+  return `${head}<ul class="wbody stations" data-scroll="page:${escapeHtml(from)}:${p.subpage}">${rows}</ul>${sub}`;
 }
 
 export function renderList(args) {
-  return masthead(args.title) + renderStatus(args.live) + listBody(args);
+  return win(args.title, renderStatus(args.live) + listBody(args), 'list');
 }
 
 export function renderSearch({ query, list, live }) {
   const form = '<form class="find" data-search role="search">'
-    + `<input name="q" type="search" value="${escapeHtml(query)}" placeholder="NAME OR TAG" aria-label="Search stations" `
+    + `<input name="q" type="search" value="${escapeHtml(query)}" placeholder="Name or tag" aria-label="Search stations" `
     + 'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">'
-    + '<button type="submit">FIND</button></form>';
-  const body = list ? listBody(list) : '<p class="msg hint">TRY <span class="tg">JAZZ</span>, <span class="tg">SALSA</span>, <span class="tg">TECHNO</span> OR A STATION NAME</p>';
-  return masthead('SEARCH') + renderStatus(live) + form + body;
+    + '<button class="btn def" type="submit">Find</button></form>';
+  const body = list ? listBody(list) : '<p class="msg hint">Try <b>jazz</b>, <b>salsa</b>, <b>techno</b> or a station name.</p>';
+  return win('Search', renderStatus(live) + form + body, 'list');
 }
 
 /** Page 999: the engineering log, newest first, with keys to copy it as text or clear it. */
 export function renderDiag(entries, live) {
   const rows = entries.slice().reverse().map(([t, e, d]) => `<li><span class="tm">${clockTime(t)}</span> `
     + `<span class="ev">${escapeHtml(e)}</span> ${escapeHtml(d)}</li>`).join('');
-  const keys = '<div class="diag-keys"><button data-diag="copy">COPY</button><button data-diag="clear">CLEAR</button></div>';
-  return masthead('ENGINEERING') + renderStatus(live) + keys
-    + (rows ? `<ol class="diag">${rows}</ol>` : '<p class="msg">NOTHING LOGGED YET</p>');
+  const keys = '<div class="diag-keys"><button class="btn" data-diag="copy">Copy</button><button class="btn" data-diag="clear">Clear</button></div>';
+  return win('Engineering', renderStatus(live) + keys
+    + (rows ? `<ol class="wbody diag">${rows}</ol>` : '<p class="msg">Nothing logged yet.</p>'));
 }
 
-/** The four fastext keys. Cyan is BROWSE on home; elsewhere it goes up to `up`: INDEX when
- *  that's a genre index, HOME when it's home. */
+/** The four keys along the bottom. The last is Browse on home; elsewhere it goes up to `up`:
+ *  Index when that's a genre index, Home when it's home. Then the keyboard shortcuts, which only
+ *  a wide screen shows. */
 export function renderFastext({ page, playing, up = 100 }) {
-  const key = (cls, k, label, aria) =>
-    `<button class="fk ${cls}" data-key="${k}" aria-label="${aria}"><span class="dh">${label}</span></button>`;
-  const [label, aria] = Number(page) === 100 ? ['BROWSE', 'Browse genres']
-    : up === 100 ? ['HOME', 'Home'] : ['INDEX', `Back to page ${up}`];
-  return key('red', 'prev', '◀ PREV', 'Previous station')
-    + key('green', 'play', playing ? '■ STOP' : '▶ PLAY', playing ? 'Stop' : 'Play')
-    + key('yellow', 'next', 'NEXT ▶', 'Next station')
-    + key('cyan', 'browse', label, aria);
+  const key = (k, label, aria, cls = '') =>
+    `<button class="btn fk${cls}" data-key="${k}" aria-label="${aria}">${label}</button>`;
+  const [label, aria] = Number(page) === 100 ? ['Browse', 'Browse genres']
+    : up === 100 ? ['Home', 'Home'] : ['Index', `Back to page ${up}`];
+  return key('prev', `${ICON.prev}<span>Prev</span>`, 'Previous station')
+    + key('play', playing ? `${ICON.stop}<span>Stop</span>` : `${ICON.next}<span>Play</span>`, playing ? 'Stop' : 'Play', ' def')
+    + key('next', `<span>Next</span>${ICON.next}`, 'Next station')
+    + key('browse', `<span>${label}</span>`, aria)
+    + '<p class="hint"><kbd>Left</kbd> <kbd>Right</kbd> <kbd>Space</kbd> or type a page number</p>';
 }
