@@ -3,8 +3,10 @@
 // in the windows' title bars, whose stripes become strings the music plays (they swing out of the
 // bar and past the window's edge, behind the titles, which stay still), in the windows' frames, which
 // swell and ripple outward around what they hold, and in a moiré trip behind the station in Now
-// Playing. Black and white only, except that trip: the one thing on the page in colour. When the music stops, or
-// the sound can't be read, everything goes back exactly as it was.
+// Playing. Black and white only, except that trip: the one thing on the page in colour. They come
+// to life gradually when a station starts, like a valve set warming up, and when it stops (or a
+// layer is switched off) they die away just as gradually, winding down like a record slowing,
+// until everything is back exactly as it was.
 import { createSignal, BANDS } from './signal.js';
 
 const KEY = 'radiotext-visuals';
@@ -41,6 +43,47 @@ const STEP = 0.02;    // s: the longest step that stays steady at this spacing a
 const SPRING = 30;
 /** The furthest a window's frame swells, px. */
 const MAX_SWELL = 36;
+
+/** Seconds to come fully to life once the music is heard, and to die away once it stops. */
+const WARM = 2.4;
+const COOL = 3.2;
+/**
+ * A layer's life one frame on: rising toward 1 while `on`, falling toward 0 otherwise. 0 is at
+ * rest (exactly as with no visuals), 1 moving fully with the music.
+ * @param {number} life @param {boolean} on @param {number} dt
+ */
+export function stepLife(life, on, dt) {
+  return on ? Math.min(1, life + dt / WARM) : Math.max(0, life - dt / COOL);
+}
+/** How much of the music a life lets through: slow to start, slow to settle. @param {number} l */
+export const ease = (l) => l * l * (3 - 2 * l);
+/**
+ * A reading turned down to `amount` (0 to 1): every level toward silence, and beats only once
+ * it's more than half alive.
+ * @param {import('./signal.js').Signal} s @param {number} amount
+ */
+export function faded(s, amount) {
+  if (amount >= 1) return s;
+  const loud = amount > 0.5;
+  return {
+    ...s,
+    level: s.level * amount,
+    bass: s.bass * amount,
+    mid: s.mid * amount,
+    treble: s.treble * amount,
+    bands: Array.from(s.bands, (b) => b * amount),
+    beat: s.beat && loud,
+    strength: s.strength * amount,
+    sinceBeat: loud ? s.sinceBeat : 9,
+  };
+}
+/** An 8×8 ordered dither: each cell's turn (0-63) to show as the trip comes and goes. */
+const BAYER8 = Uint8Array.from({ length: 64 }, (_, i) => {
+  const [x, y] = [i % 8, i >> 3];
+  let v = 0;
+  for (let b = 0; b < 3; b++) v = (v << 2) | ((((x >> b) & 1) ^ ((y >> b) & 1)) << 1) | ((y >> b) & 1);
+  return v;
+});
 
 /**
  * One frame of a string: `y` (offsets from rest, px) and `v` (px/s), moved on by dt seconds.
@@ -105,10 +148,11 @@ export function createVisuals({ store, tap, allowed }) {
 
   // ---- Mast: two pairs of arcs for the level, the light blinking on the beat ----
   const mast = () => document.querySelector('#hdr .mast');
-  function drawMast(s) {
+  function drawMast(s, life) {
     const m = mast();
     if (!m) return;
-    const level = s.level > 0.8 ? '2' : s.level > 0.45 ? '1' : '0';
+    const lit = 1 - life * (1 - s.level); // at rest every arc shows; the music takes over as it wakes
+    const level = lit > 0.8 ? '2' : lit > 0.45 ? '1' : '0';
     if (m.getAttribute('data-level') !== level) m.setAttribute('data-level', level);
     if (s.sinceBeat < 0.09) m.setAttribute('data-beat', '');
     else m.removeAttribute('data-beat');
@@ -140,7 +184,7 @@ export function createVisuals({ store, tap, allowed }) {
     }
     return st;
   }
-  function drawBars(s, ink, dt, now) {
+  function drawBars(s, ink, dt, now, amount) {
     root.classList.add('viz-bars');
     const t = now / 1000;
     for (const bar of document.querySelectorAll('.tbar')) {
@@ -164,7 +208,7 @@ export function createVisuals({ store, tap, allowed }) {
         for (let x = 0; x < w; x += 2) {
           const f = x / dx;
           const i = Math.min(st.n - 2, Math.floor(f));
-          const py = Math.round(base + y[i] + (y[i + 1] - y[i]) * (f - i));
+          const py = Math.round(base + (y[i] + (y[i + 1] - y[i]) * (f - i)) * amount);
           const top = prev === null ? py : Math.min(prev, py);
           g.fillRect(x, top, 2, (prev === null ? 0 : Math.abs(prev - py)) + 2);
           prev = py;
@@ -227,7 +271,7 @@ export function createVisuals({ store, tap, allowed }) {
   }
   /** A window's shape: its rectangle, and how far out its frame is at each point around it
    *  (`out(p)`, p measured clockwise from the top-left corner). */
-  function shapeOf(win, pg, s, dt, t) {
+  function shapeOf(win, pg, s, dt, t, amount) {
     const r = win.getBoundingClientRect();
     const x0 = Math.round(r.left - pg.left);
     const y0 = Math.round(r.top - pg.top);
@@ -249,7 +293,7 @@ export function createVisuals({ store, tap, allowed }) {
       const q = ((((p % P) + P) % P) / P) * n;
       const i = Math.floor(q) % n;
       const y = f.y[i] + (f.y[(i + 1) % n] - f.y[i]) * (q - Math.floor(q));
-      return Math.max(0, Math.min(MAX_SWELL, Math.round(swell + y)));
+      return Math.max(0, Math.min(MAX_SWELL, Math.round((swell + y) * amount)));
     };
     return { x0, y0, x1: x0 + W, y1: y0 + H, W, H, out };
   }
@@ -291,14 +335,14 @@ export function createVisuals({ store, tap, allowed }) {
     line(W + br + bl - 2, (k) => { const x = W - k + br - 2; return [x0 + x, y1 - 2 + out(2 * W + H - Math.max(0, Math.min(W, x)))]; }, true);
     line(H + bl + tl - 2, (k) => { const y = H - k + bl - 2; return [x0 - out(2 * W + 2 * H - Math.max(0, Math.min(H, y))), y0 + y]; }, false);
   }
-  function drawBoxes(s, ink, paper, dt, now) {
+  function drawBoxes(s, ink, paper, dt, now, amount) {
     const screen = document.getElementById('screen');
     const page = document.getElementById('page');
     if (!screen || !page) return;
     root.classList.add('viz-boxes');
     const pg = page.getBoundingClientRect();
     const g = boxCanvas(screen, page, Math.round(pg.width), Math.round(pg.height));
-    const shapes = [...page.querySelectorAll('.win')].filter((w) => w.offsetParent).map((w) => shapeOf(w, pg, s, dt, now / 1000));
+    const shapes = [...page.querySelectorAll('.win')].filter((w) => w.offsetParent).map((w) => shapeOf(w, pg, s, dt, now / 1000, amount));
     g.fillStyle = ink;
     for (const sh of shapes) fillShape(g, sh, 4);
     g.fillStyle = paper;
@@ -325,7 +369,8 @@ export function createVisuals({ store, tap, allowed }) {
   // beat kicks one set out half a ring and a big one flips the lot for an instant. Drawn in 2px
   // blocks on a canvas laid over the window, above even the light/dark switch (which flips the
   // pixels under it: its colours must not flip with them), with holes where the words are, which
-  // sit on paper so they still read (.viz-trip in styles.css). ----
+  // sit on paper so they still read (.viz-trip in styles.css). It comes and goes through an
+  // ordered dither, a few more blocks at a time, slowing to a stop as it fades. ----
   const TRIP_BLOCK = 2;
   /** The palette, in order round the wheel: marigold, cream, blush, sage and coral. */
   const PALETTE = ['#f6bd60', '#f7ede2', '#f5cac3', '#84a59d', '#f28482'];
@@ -347,7 +392,7 @@ export function createVisuals({ store, tap, allowed }) {
   let turn = 0;
   /** @type {ImageData|null} */
   let tripImg = null;
-  function drawTrip(s, dt) {
+  function drawTrip(s, dt, amount) {
     const body = document.querySelector('.rail .win.air .onair');
     if (!body?.offsetParent) return;
     root.classList.add('viz-trip');
@@ -377,8 +422,8 @@ export function createVisuals({ store, tap, allowed }) {
       return [Math.floor((r.left - box.left) / TRIP_BLOCK), Math.floor((r.top - box.top) / TRIP_BLOCK),
         Math.ceil((r.right - box.left) / TRIP_BLOCK), Math.ceil((r.bottom - box.top) / TRIP_BLOCK)];
     });
-    tripTime += dt * (0.5 + 2.4 * s.level);
-    turn += dt * (25 + 140 * s.level);
+    tripTime += dt * (0.5 + 2.4 * s.level) * amount;
+    turn += dt * (25 + 140 * s.level) * amount;
     if (s.beat) {
       kick = (kick + 0.5) % 1;
       turn += 30 + 90 * s.strength;
@@ -394,14 +439,15 @@ export function createVisuals({ store, tap, allowed }) {
     const bx = cols * (0.5 + 0.38 * Math.sin(t * 0.53 + 2.2));
     const by = rows * (0.5 + 0.42 * Math.cos(t * 0.61));
     const px = tripImg.data;
+    const cut = amount * 64;
     for (let y = 0; y < rows; y++) {
       const wy = Math.sin(y * 0.13 + t * 1.3);
       for (let x = 0; x < cols; x++) {
         const w = bend * (wy + Math.sin(x * 0.07 - t * 0.9)) + ripple * Math.sin(x * 0.9 + y * 0.7 + t * 6);
         const a = Math.floor(Math.hypot(x - ax, y - ay) / ring + w / ring + kick);
         const b = Math.floor((Math.hypot(x - bx, y - by) - w) / ring);
-        let on = ((a + b) & 1) ^ flip;
-        for (const [x0, y0, x1, y1] of holes) if (x >= x0 && x < x1 && y >= y0 && y < y1) on = 0;
+        let on = BAYER8[(y & 7) * 8 + (x & 7)] < cut ? ((a + b) & 1) ^ flip : 0;
+        if (on) for (const [x0, y0, x1, y1] of holes) if (x >= x0 && x < x1 && y >= y0 && y < y1) on = 0;
         const o = (y * cols + x) * 4;
         const h = ((((a + 2 * b) * 36 + turn) % 360) + 360) % 360 | 0;
         px[o] = HUES[h * 3];
@@ -443,68 +489,82 @@ export function createVisuals({ store, tap, allowed }) {
     c?.getContext('2d').clearRect(0, 0, c.width, c.height);
   };
 
-  function rest(why) {
-    if (!resting) {
-      restMast();
-      restBars();
-      restBoxes();
-      restTrip();
-      restLab();
-      resting = true;
-    }
-    say(why);
+  function rest() {
+    if (resting) return;
+    restMast();
+    restBars();
+    restBoxes();
+    restTrip();
+    restLab();
+    resting = true;
   }
 
+  /** How alive each part is (see stepLife): each comes and goes on its own, so switching one
+   *  layer off on page 500 fades just that one. */
+  const lives = { signal: 0, bars: 0, boxes: 0, trip: 0, lab: 0 };
+  const alive = () => Object.values(lives).some((l) => l > 0);
+  /** Set by update(): the visuals are on and a station plays on a wide, visible page. */
+  let want = false;
+  /** The last live reading: what everything fades from once the sound has gone. */
+  /** @type {import('./signal.js').Signal|null} */
+  let held = null;
+  const idle = () => (settings.on ? 'Play a station to see its signal.' : 'Visuals are off.');
+
+  // Runs while there's music to read, and on after it stops until everything has died away.
   function frame(now) {
-    raf = requestAnimationFrame(frame);
+    raf = 0;
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60;
     last = now;
-    const data = tap.read();
-    if (!data) {
-      rest('This station doesn’t let its sound be read, so the visuals rest. Most stations do.');
-      return;
+    const data = want ? tap.read() : null;
+    let live = false;
+    if (data) {
+      read ??= createSignal({ binCount: tap.binCount, sampleRate: tap.sampleRate });
+      const s = read(data.freq, data.wave, dt);
+      if (s.live) {
+        held = s;
+        live = true;
+      }
     }
-    read ??= createSignal({ binCount: tap.binCount, sampleRate: tap.sampleRate });
-    const s = read(data.freq, data.wave, dt);
-    if (!s.live) {
-      rest('Waiting for sound…');
-      return;
+    if (!live && held && (held.beat || held.sinceBeat < 9)) held = { ...held, beat: false, sinceBeat: 9 };
+    say(!want ? idle()
+      : !data ? 'This station doesn’t let its sound be read, so the visuals rest. Most stations do.'
+        : live ? 'Live: reading the station as it plays.' : 'Waiting for sound…');
+    for (const k of Object.keys(lives)) lives[k] = stepLife(lives[k], live && (k === 'lab' || settings[k]), dt);
+    if (held && alive()) paint(held, dt, now);
+    else rest();
+    if (want || alive()) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      last = 0;
+      tap.sleep();
     }
-    resting = false;
-    say('Live: reading the station as it plays.');
-    lastSignal = s;
-    paint(s, dt, now);
   }
 
-  /** @type {import('./signal.js').Signal|null} */
-  let lastSignal = null;
   function paint(s, dt, now) {
+    resting = false;
     const style = getComputedStyle(root);
     const ink = style.getPropertyValue('--ink').trim() || '#000';
     const paper = style.getPropertyValue('--paper').trim() || '#fff';
-    if (settings.signal) drawMast(s);
+    const part = (k) => ease(lives[k]);
+    if (lives.signal > 0) drawMast(faded(s, part('signal')), part('signal'));
     else restMast();
-    if (settings.boxes) drawBoxes(s, ink, paper, dt, now);
+    if (lives.boxes > 0) drawBoxes(faded(s, part('boxes')), ink, paper, dt, now, part('boxes'));
     else restBoxes();
-    if (settings.bars) drawBars(s, ink, dt, now);
+    if (lives.bars > 0) drawBars(faded(s, part('bars')), ink, dt, now, part('bars'));
     else restBars();
-    if (settings.trip) drawTrip(s, dt);
+    if (lives.trip > 0) drawTrip(faded(s, part('trip')), dt, part('trip'));
     else restTrip();
-    drawLab(s, ink);
+    if (lives.lab > 0) drawLab(faded(s, part('lab')), ink);
+    else restLab();
   }
 
   function update() {
-    const go = settings.on && tap.supported && allowed();
-    if (go && !raf) {
+    want = settings.on && tap.supported && allowed();
+    if ((want || alive()) && !raf) {
       last = 0;
       raf = requestAnimationFrame(frame);
-    } else if (!go && raf) {
-      cancelAnimationFrame(raf);
-      raf = 0;
-      rest(settings.on ? 'Play a station to see its signal.' : 'Visuals are off.');
-      tap.sleep();
-    } else if (!go) {
-      say(settings.on ? 'Play a station to see its signal.' : 'Visuals are off.');
+    } else if (!want && !raf) {
+      say(idle());
     }
   }
 
@@ -513,7 +573,7 @@ export function createVisuals({ store, tap, allowed }) {
     /** Draws the last frame again straight away, without moving anything on: for the moment the
      *  theme changes, so nothing shows the old colours for a frame. */
     repaint() {
-      if (raf && !resting && lastSignal) paint({ ...lastSignal, beat: false }, 0, performance.now());
+      if (held && alive()) paint({ ...held, beat: false }, 0, performance.now());
     },
     /** @param {'on'|'signal'|'bars'|'boxes'|'trip'} k */
     toggle(k) {

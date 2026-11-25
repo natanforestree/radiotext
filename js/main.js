@@ -15,6 +15,7 @@ import { createDiag, diagText } from './diag.js';
 import { storedTheme, saveTheme, ditherSwap } from './theme.js';
 import { createReadable, createTap } from './listen.js';
 import { createVisuals } from './visuals.js';
+import { scanIn, typeIn, flash, zoom } from './motion.js';
 
 /** @typedef {import('./config.js').Station} Station */
 
@@ -137,8 +138,11 @@ function pageHtml() {
  * Re-renders the whole page. Text typed into the search box survives it, and so does where each
  * list was scrolled to (on a wide screen the lists scroll inside their windows), as long as the
  * same list comes back. An index list seen for the first time is scrolled to the open page.
+ * `arrive`: new content, which comes in a row at a time from the top (see arriving), opening out
+ * of `from`, the rectangle of what was tapped, if given.
  */
-function render() {
+function render({ arrive = false, from = null } = {}) {
+  const indexWas = pageEl.querySelector('.idxcol .tbar span')?.textContent ?? '';
   const input = pageEl.querySelector('input[name=q]');
   const typed = input && { value: input.value, focused: document.activeElement === input };
   const scrolled = new Map([...pageEl.querySelectorAll('[data-scroll]')].map((el) => [el.dataset.scroll, el.scrollTop]));
@@ -158,6 +162,31 @@ function render() {
   updateSession();
   checkReadable();
   visuals.update();
+  airState();
+  if (arrive) arriving({ from, index: indexWas !== (pageEl.querySelector('.idxcol .tbar span')?.textContent ?? '') });
+}
+
+/** What a page brings in, row by row: everything inside its windows (their frames and title bars
+ *  are there at once). On a wide screen only the page itself, and the index beside it when that
+ *  changed; Now Playing and the saved stations stay put. */
+const ROWS = '.wbody > li, .msg, .thead, .sub, .find, .viz-status, .lab, .lab-key, .diag-keys, .onair';
+function arriving({ from, index }) {
+  const parts = wide.matches ? [...pageEl.querySelectorAll(index ? '.main, .idxcol' : '.main')] : [pageEl];
+  scanIn(parts.flatMap((p) => [...p.querySelectorAll(ROWS)]));
+  if (!from) return;
+  const wins = wide.matches ? [...pageEl.querySelectorAll('.main > .win')] : [pageEl];
+  const boxes = wins.map((w) => w.getBoundingClientRect()).filter((b) => b.width);
+  if (!boxes.length) return;
+  const left = Math.min(...boxes.map((b) => b.left));
+  const top = Math.min(...boxes.map((b) => b.top));
+  const right = Math.max(...boxes.map((b) => b.right));
+  const bottom = Math.min(innerHeight, Math.max(...boxes.map((b) => b.bottom)));
+  zoom(from, { left, top, width: right - left, height: bottom - top });
+}
+
+/** The player's state, on the page's root, for what moves with it in styles.css (the mast). */
+function airState() {
+  document.documentElement.dataset.air = player.state.kind;
 }
 
 /** After a player or song change: the ON AIR block or status line, the current row, the keys,
@@ -171,7 +200,16 @@ function refreshLive() {
   for (const row of pageEl.querySelectorAll('.row[data-tune]')) row.classList.toggle('cur', row.dataset.tune === uuid);
   renderKeys();
   updateSession();
+  airState();
+  // A new station's name, and a new song, type themselves in, like a set finding them.
+  if (uuid && uuid !== typed.uuid) for (const el of pageEl.querySelectorAll('#onair .air-name, #status .nm')) typeIn(el);
+  const song = player.state.kind === 'playing' ? app.song : null;
+  if (song && song !== typed.song) for (const el of pageEl.querySelectorAll('#onair .air-song span, #status .sg span')) typeIn(el);
+  typed.uuid = uuid ?? null;
+  typed.song = song;
 }
+/** The station and song last shown, so only a change types in. */
+const typed = { uuid: /** @type {string|null} */ (null), song: /** @type {string|null} */ (null) };
 
 // The ON AIR block and status line are patched in place like the keys below: only text,
 // attributes and children that changed are touched, and an element is replaced only where the
@@ -265,7 +303,20 @@ function onChange({ kind, station }) {
   diag.note('state', `${kind} ${station ? displayName(station) : ''}`);
   if (kind === 'playing' || kind === 'unavailable' || kind === 'off' || kind === 'lost') noise.stop();
   refreshLive();
+  if (kind !== lastKind) lampTurns(lastKind, kind);
+  lastKind = kind;
   visuals.update();
+}
+
+let lastKind = 'off';
+/** The lamp, as the state changes: on air fills it through dither, a stop empties it the same way
+ *  (slower: it dies away), and a lost signal blinks it. */
+function lampTurns(from, to) {
+  const turn = to === 'playing' ? ['warm', 520]
+    : to === 'off' && ON.has(from) ? ['cool', 900]
+      : to === 'lost' || to === 'unavailable' ? ['alarm', 760] : null;
+  if (!turn) return;
+  for (const lamp of pageEl.querySelectorAll('#onair .lamp, #status .lamp')) flash(lamp, ...turn);
 }
 
 // Every tune counts a click on Radio Browser and restarts the song lookups.
@@ -359,7 +410,7 @@ function pollSong() {
  * page goes into the browser's history, so back (a swipe on iPhone) returns to the last one;
  * `push: false` when back or forward brought us here.
  */
-function goTo(n, { push = true } = {}) {
+function goTo(n, { push = true, from = null } = {}) {
   const r = route(n, { savedCount: saved.list().length, genres: GENRES, sections: SECTIONS });
   if (!r) return false;
   let page = n;
@@ -369,7 +420,8 @@ function goTo(n, { push = true } = {}) {
     tuneTo(list[r.index]);
     page = 100;
   }
-  if (page !== app.page) {
+  const arrive = page !== app.page;
+  if (arrive) {
     app.page = page;
     app.subpage = 1;
     if (push) {
@@ -378,8 +430,8 @@ function goTo(n, { push = true } = {}) {
   }
   if (padOpen) setPad(false);
   if (r.kind === 'genre') loadGenre(r.genre);
-  render();
   window.scrollTo(0, 0);
+  render({ arrive, from });
   return true;
 }
 
@@ -392,7 +444,7 @@ function loadGenre(genre) {
     .catch(() => ({ status: 'error', stations: [] }))
     .then((list) => {
       app.lists.set(genre.page, list);
-      if (app.page === genre.page) render();
+      if (app.page === genre.page) render({ arrive: true });
     });
 }
 
@@ -414,7 +466,7 @@ function runSearch(q) {
     .then((list) => {
       if (g !== searchGen) return; // a newer search replaced this one
       app.lists.set(300, list);
-      if (app.page === 300) render();
+      if (app.page === 300) render({ arrive: true });
     });
 }
 
@@ -422,8 +474,8 @@ function changeSub(step) {
   const l = app.lists.get(app.page);
   if (!l) return;
   app.subpage = paginate(l.stations, perPage(), app.subpage + step).subpage;
-  render();
   window.scrollTo(0, 0);
+  render({ arrive: true });
 }
 
 // ---- Saving ----
@@ -447,6 +499,10 @@ function toggleStar(uuid) {
   }
   if (flip.source() === 'saved') rebuildSavedFlip();
   render();
+  if (!saved.has(uuid)) return;
+  const id = CSS.escape(uuid);
+  for (const star of pageEl.querySelectorAll(`.star[data-star="${id}"]`)) flash(star, 'pop', 420);
+  typeIn(pageEl.querySelector(`.saved .row[data-tune="${id}"]`));
 }
 
 // Keeps the current station's place. If it was the one unsaved, sit on the station before it,
@@ -550,11 +606,11 @@ function tapStation(uuid, from) {
   tuneTo(list[i]);
 }
 
-function pressKey(key) {
+function pressKey(key, el = null) {
   if (key === 'prev') flipBy(-1);
   else if (key === 'next') flipBy(1);
   else if (key === 'play') togglePlay();
-  else if (key === 'browse') goTo(app.page === 100 ? 200 : upFrom(app.page));
+  else if (key === 'browse') goTo(app.page === 100 ? 200 : upFrom(app.page), { from: el?.getBoundingClientRect() ?? null });
 }
 
 function onClick(e) {
@@ -563,9 +619,9 @@ function onClick(e) {
   const d = el.dataset;
   if (d.tune) tapStation(d.tune, d.from);
   else if (d.star) toggleStar(d.star);
-  else if (d.page) goTo(Number(d.page));
+  else if (d.page) goTo(Number(d.page), { from: el.getBoundingClientRect() });
   else if (d.sub) changeSub(d.sub === 'next' ? 1 : -1);
-  else if (d.key) pressKey(d.key);
+  else if (d.key) pressKey(d.key, el);
   else if (d.viz) toggleVisual(d.viz);
   else if (d.diag) diagKey(d.diag, el);
 }
@@ -576,7 +632,7 @@ hdr.addEventListener('click', (e) => {
   if (!el) return;
   if (el.hasAttribute('data-pad')) setPad(!padOpen);
   else if (el.hasAttribute('data-theme-toggle')) toggleTheme();
-  else if (el.dataset.page) goTo(Number(el.dataset.page)); // the wide-screen menu
+  else if (el.dataset.page) goTo(Number(el.dataset.page), { from: el.getBoundingClientRect() }); // the wide-screen menu
 });
 padEl.addEventListener('click', (e) => {
   const el = e.target instanceof Element ? e.target.closest('button') : null;
@@ -636,6 +692,7 @@ function setPad(open) {
   clearDigits();
   renderTop();
   renderPadNow();
+  if (open) scanIn(padEl.querySelectorAll('.pad-show, .pk'), { byOrder: true });
 }
 
 const KEYS = {
@@ -674,6 +731,7 @@ addEventListener('popstate', (e) => {
 });
 applyTheme();
 render();
+typed.uuid = shown()?.uuid ?? null; // what's shown at first doesn't type in when it's played
 // Crossing the wide-screen width changes the stations per subpage; the subpage is clamped to fit.
 try { wide.addEventListener('change', render); } catch { /* an older browser keeps its first layout */ }
 visuals.update();

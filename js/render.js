@@ -75,8 +75,9 @@ function indexRow({ n, label, tag, attrs, cur = false, here = false }) {
     + `<span class="n">${n}</span><span class="nm">${label}</span><span class="t">${tag}</span></button></li>`;
 }
 
-/** The top bar menu, shown on a wide screen: the pages the phone reaches from home. */
-const MENU = [[200, 'Genres'], [300, 'Search'], [500, 'Visuals'], [999, 'Engineering']];
+/** The top bar menu, shown on a wide screen: the pages the phone reaches from home. The visuals
+ *  need no key: they're on whenever a station plays (their switches are on page 500, typed). */
+const MENU = [[200, 'Genres'], [300, 'Search'], [999, 'Engineering']];
 
 /** The top bar. The page number is a button: it opens the keypad for typing a page number. On a
  *  wide screen a menu follows it, with the part of the radio you're in marked. Last comes the
@@ -90,7 +91,7 @@ export function renderHeader(page, now, { padOpen = false, dark = false } = {}) 
     + `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
     + `Page ${escapeHtml(page)}</button><nav class="menu" aria-label="Pages">${menu}</nav><span class="sp"></span>`
     + `<span class="dt">${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}</span>`
-    + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`
+    + `<span class="clk">${pad2(now.getHours())}<span class="col">:</span>${pad2(now.getMinutes())}</span>`
     + `<button class="tm" data-theme-toggle aria-label="Dark mode" aria-pressed="${dark}">${dark ? ICON.sun : ICON.moon}</button>`;
 }
 

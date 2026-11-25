@@ -24,7 +24,8 @@ test('renderList escapes station names and tags', () => {
 });
 test('header shows name, page, date and a zero-padded clock', () => {
   const html = renderHeader(100, new Date(2026, 9, 22, 7, 5));
-  assert.ok(html.includes('Page 100') && html.includes('Radiotext') && html.includes('Thu 22 Oct') && html.includes('07:05'));
+  const text = html.replace(/<[^>]+>/g, '');
+  assert.ok(text.includes('Page 100') && text.includes('Radiotext') && text.includes('Thu 22 Oct') && text.includes('07:05'));
 });
 test('home lists saved stations as pages 101.. and marks the current one', () => {
   const html = renderHome({ onAir: { station: STATIONS[1], kind: 'playing', song: null, saved: true }, saved: STATIONS, currentUuid: STATIONS[1].uuid });
@@ -134,8 +135,9 @@ test('the header menu marks the part of the radio you are in', () => {
   assert.deepEqual(on(renderHeader('2__', new Date())), []);
   for (const n of [200, 300, 999]) assert.ok(renderHeader(100, new Date()).includes(`data-page="${n}"`));
 });
-test('the top bar menu has the visuals page', () => {
-  assert.match(renderHeader(500, new Date()), /class="mi on" data-page="500" aria-current="page">Visuals</);
+test('the top bar menu has no visuals key: they come on with the music, and page 500 is typed', () => {
+  assert.ok(!renderHeader(100, new Date()).includes('data-page="500"'));
+  assert.ok(!renderHeader(500, new Date()).includes('class="mi on"'));
 });
 test('page 500 has a switch per layer, marked on or off, and the signal lab', () => {
   const html = renderVisuals({ settings: { on: true, signal: true, bars: false, boxes: true, trip: true }, supported: true });

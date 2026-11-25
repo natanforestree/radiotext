@@ -3,7 +3,9 @@
    what's playing, and a dark mode that swaps the two. A phone gets one column of windows; a wide
    screen (760px wide and 500px tall and up, the same test as in js/main.js) gets the saved
    stations, the index one level up and the page side by side, each list scrolling in its own
-   window. The only motion is the rings that turn the screen over between light and dark. */
+   window. Motion is small and stepped, never smooth or shaking: rings turn the screen over between
+   light and dark, pages come in a row at a time, lamps fill through dither, the mast's light blinks
+   while on air (see "Motion" below). */
 
 @font-face {
   font-family: "Pixelify Sans";
@@ -381,19 +383,12 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 .viz-bars .tbar { background: none; }
 .tbar span { z-index: 3; }
 
-/* Windows: their frames, fill and shadows are drawn on a canvas under them (js/visuals.js), so
-   the dotted desktop moves from the page to the screen behind it, and the windows' own border,
-   fill and shadow step aside (the border keeps its width, so nothing inside moves). */
-.viz-boxes #screen {
-  position: relative;
-  background-color: var(--paper);
-  background-image:
-    conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0),
-    conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0);
-  background-position: 0 0, 2px 2px;
-  background-size: 4px 4px;
-}
-.viz-boxes #page { position: relative; z-index: 1; background: none; }
+/* Windows: their frames, fill and shadows are drawn on a canvas under them (js/visuals.js),
+   between the page and the screen behind it (which carries the dotted desktop on a wide screen),
+   and the windows' own border, fill and shadow step aside (the border keeps its width, so nothing
+   inside moves). */
+.viz-boxes #screen { position: relative; }
+.viz-boxes #page { position: relative; z-index: 1; }
 .viz-boxes .win { background: transparent; border-color: transparent; box-shadow: none; }
 #screen > canvas.boxes { position: absolute; left: 0; z-index: 0; pointer-events: none; }
 
@@ -411,7 +406,83 @@ body > canvas.trip { position: fixed; z-index: 11; pointer-events: none; image-r
   background: var(--paper);
 }
 .viz-trip .onair .air-name { flex: 0 1 auto; }
-.viz-trip .onair .star { background: var(--paper); }
+.viz-trip .onair .star { margin-left: auto; background: var(--paper); }
+
+/* ---- Motion: stepped, like the screen it imitates, and all of it off with reduced motion. The
+   rest is in js/motion.js (pages arriving, names typing in, windows opening) and js/visuals.js. ---- */
+
+/* Outlines of a window opening out of what was tapped: a canvas that flips what it crosses. */
+.zoom { position: fixed; top: 0; left: 0; z-index: 12; pointer-events: none; mix-blend-mode: difference; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The clock's colon ticks the seconds. */
+  #hdr .clk .col { animation: tick 2s steps(1, end) infinite; }
+
+  /* The mast: while a station is on air, its light blinks slowly, like the warning light on a real
+     one; while tuning, its arcs go out one after the other, searching. The visuals take it over
+     while they run (data-level). */
+  :root[data-air="playing"] #hdr .mast:not([data-level]) .tip { animation: beacon 2.4s steps(1, end) infinite; }
+  :root:is([data-air="tuning"], [data-air="retrying"]) #hdr .mast:not([data-level]) .a1 { animation: arc-near 1.2s steps(1, end) infinite; }
+  :root:is([data-air="tuning"], [data-air="retrying"]) #hdr .mast:not([data-level]) .a2 { animation: arc-far 1.2s steps(1, end) infinite; }
+
+  /* A busy lamp (tuning, searching, retrying): its dashed border marches round. */
+  .lamp.busy {
+    border-style: solid;
+    border-color: transparent;
+    background:
+      linear-gradient(90deg, var(--ink) 50%, transparent 0) 0 0 / 8px 2px repeat-x,
+      linear-gradient(90deg, var(--ink) 50%, transparent 0) 0 100% / 8px 2px repeat-x,
+      linear-gradient(var(--ink) 50%, transparent 0) 0 0 / 2px 8px repeat-y,
+      linear-gradient(var(--ink) 50%, transparent 0) 100% 0 / 2px 8px repeat-y;
+    background-origin: border-box;
+    animation: march .8s steps(4) infinite;
+  }
+
+  /* On air, the lamp fills through dither; stopped, it empties the same way, slower, dying away;
+     a lost signal blinks it. (js/main.js lampTurns) */
+  .lamp.warm { animation: lamp-warm .52s steps(1, end) both; }
+  .lamp.cool { animation: lamp-cool .9s steps(1, end) both; }
+  .lamp.alarm { animation: alarm .76s steps(1, end) both; }
+
+  /* Saved: the star throws off sparks, out and gone in three steps. */
+  .star.pop::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 2px;
+    margin: -1px 0 0 -1px;
+    pointer-events: none;
+    animation: sparkle .42s steps(1, end) both;
+  }
+}
+
+@keyframes tick { 50% { visibility: hidden; } }
+@keyframes beacon { 75% { visibility: hidden; } }
+@keyframes arc-near { 0% { visibility: hidden; } 33% { visibility: visible; } }
+@keyframes arc-far { 0% { visibility: hidden; } 66% { visibility: visible; } }
+@keyframes march { to { background-position: 8px 0, -8px 100%, 0 -8px, 100% 8px; } }
+@keyframes lamp-warm {
+  0% { color: var(--ink); background: conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 0 0 / 2px 2px; }
+  25% { color: var(--ink); background: conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 0 0 / 2px 2px, conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 1px 1px / 2px 2px; }
+  50% { color: var(--paper); background: conic-gradient(from 270deg at 1px 1px, transparent 25%, var(--ink) 0) 0 0 / 2px 2px; }
+  75%, 100% { color: var(--paper); background: var(--ink); }
+}
+@keyframes lamp-cool {
+  0% { color: var(--paper); background: var(--ink); }
+  22% { color: var(--paper); background: conic-gradient(from 270deg at 1px 1px, transparent 25%, var(--ink) 0) 0 0 / 2px 2px; }
+  48% { color: var(--ink); background: conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 0 0 / 2px 2px, conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 1px 1px / 2px 2px; }
+  74% { color: var(--ink); background: conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0) 0 0 / 2px 2px; }
+  100% { color: var(--ink); background: none; }
+}
+@keyframes alarm { 20%, 60% { visibility: hidden; } 40%, 80% { visibility: visible; } }
+@keyframes sparkle {
+  0% { box-shadow: -8px -8px var(--ic), 8px -8px var(--ic), -8px 8px var(--ic), 8px 8px var(--ic); }
+  33% { box-shadow: -12px -12px var(--ic), 12px -12px var(--ic), -12px 12px var(--ic), 12px 12px var(--ic), 0 -14px var(--ic), 0 14px var(--ic), -14px 0 var(--ic), 14px 0 var(--ic); }
+  66% { box-shadow: 0 -18px var(--ic), 0 18px var(--ic), -18px 0 var(--ic), 18px 0 var(--ic); }
+  100% { box-shadow: none; }
+}
 
 /* ---- Engineering log (999) ---- */
 
@@ -425,7 +496,7 @@ body > canvas.trip { position: fixed; z-index: 11; pointer-events: none; image-r
 #fastext, .pad {
   position: sticky;
   bottom: 0;
-  z-index: 1;
+  z-index: 5; /* above the windows' titles (3) and strings (2) scrolling under it */
   padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   background: var(--paper);
   border-top: 2px solid var(--ink);
@@ -454,11 +525,24 @@ body > canvas.trip { position: fixed; z-index: 11; pointer-events: none; image-r
   #hdr .dt { display: inline; }
   #hdr .menu { display: flex; gap: .3em; margin-left: .6em; }
 
+  /* The desk's dots belong to the screen behind the page: they start on a whole pixel there (the
+     page's top can fall between two, which blurs them grey), and they stay put when the visuals
+     draw the windows' frames between the two. */
+  #screen {
+    background-color: var(--paper);
+    background-image:
+      conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0),
+      conic-gradient(from 270deg at 1px 1px, var(--ink) 25%, transparent 0);
+    background-position: 0 0, 2px 2px;
+    background-size: 4px 4px;
+  }
+
   #page {
     --gap: 1.2em;
     flex: 1 1 auto;
     overflow: hidden;
     padding: var(--gap) calc(var(--gap) + 4px) calc(var(--gap) + 4px) var(--gap);
+    background: none;
   }
   .desk { flex-direction: row; height: 100%; max-width: 100em; margin-inline: auto; }
   .rail { display: flex; flex: 0 0 20em; }
