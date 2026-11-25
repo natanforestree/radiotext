@@ -12,6 +12,7 @@ import { createStatic } from './static.js';
 import { renderHeader, renderOnAir, renderStatus, renderHome, renderRail, renderDesk, renderIndex, renderGenres, renderSection, renderList, renderSearch, renderFastext, renderDiag, renderPad } from './render.js';
 import { buildMetadata, playbackStateFor, bindMediaSession, loggedSession } from './mediasession.js';
 import { createDiag, diagText } from './diag.js';
+import { storedTheme, saveTheme, ditherSwap } from './theme.js';
 
 /** @typedef {import('./config.js').Station} Station */
 
@@ -29,6 +30,8 @@ dropRetired(store, RETIRED_PRESETS);
 const saved = createSaved(store, PRESETS);
 const dead = createDead(store);
 const diag = createDiag(store);
+/** Dark mode, as chosen on this device (index.html applies it before the first paint). */
+let dark = storedTheme(store) === 'dark';
 const canPlay = (mime) => audio.canPlayType(mime) !== '';
 // window.fetch throws "Illegal invocation" when called as a method of another object.
 const fetchFn = (...args) => globalThis.fetch(...args);
@@ -169,7 +172,7 @@ let padNote = '';
 // Patched like the ON AIR block: the page number is a button, and the clock ticks beside it.
 function renderTop() {
   const t = document.createElement('template');
-  t.innerHTML = renderHeader(digits ? digits.padEnd(3, '_') : app.page, new Date(), { padOpen });
+  t.innerHTML = renderHeader(digits ? digits.padEnd(3, '_') : app.page, new Date(), { padOpen, dark });
   const fresh = [...t.content.childNodes];
   const old = [...hdr.childNodes];
   if (old.length !== fresh.length) hdr.replaceChildren(...fresh);
@@ -421,6 +424,26 @@ function rebuildSavedFlip() {
   flip.set(list, i, 'saved');
 }
 
+// ---- Light and dark ----
+
+function applyTheme() {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#000000' : '#ffffff');
+  document.querySelector('meta[name=color-scheme]')?.setAttribute('content', dark ? 'dark' : 'light');
+}
+
+/** The moon/sun key. Night falls from the top; morning comes up from the bottom. A tap while the
+ *  screen is still turning over is ignored. */
+let turning = false;
+function toggleTheme() {
+  if (turning) return;
+  dark = !dark;
+  saveTheme(store, dark ? 'dark' : 'light');
+  renderTop();
+  turning = true;
+  ditherSwap({ from: dark ? 'top' : 'bottom', apply: () => { applyTheme(); turning = false; } });
+}
+
 // ---- Engineering log ----
 
 /** COPY puts the log on the clipboard as text, to paste into a message. CLEAR empties it. */
@@ -496,6 +519,7 @@ hdr.addEventListener('click', (e) => {
   const el = e.target instanceof Element ? e.target.closest('button') : null;
   if (!el) return;
   if (el.hasAttribute('data-pad')) setPad(!padOpen);
+  else if (el.hasAttribute('data-theme-toggle')) toggleTheme();
   else if (el.dataset.page) goTo(Number(el.dataset.page)); // the wide-screen menu
 });
 padEl.addEventListener('click', (e) => {
@@ -592,6 +616,7 @@ addEventListener('popstate', (e) => {
   const n = Number(e.state?.page);
   if (n) goTo(n, { push: false });
 });
+applyTheme();
 render();
 // Crossing the wide-screen width changes the stations per subpage; the subpage is clamped to fit.
 try { wide.addEventListener('change', render); } catch { /* an older browser keeps its first layout */ }

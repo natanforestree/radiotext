@@ -23,6 +23,8 @@ const ICON = {
   next: pixel(4, 'M0 0h1v7H0zM1 1h1v5H1zM2 2h1v3H2zM3 3h1v1H3z'),
   stop: pixel(7, 'M1 1h5v5H1z'),
   note: pixel(6, 'M3 0h2v1H3zM5 1h1v1H5zM3 1h1v3H3zM1 4h3v1H1zM0 5h4v1H0zM1 6h2v1H1z'),
+  moon: pixel(5, 'M2 0h3v1H2zM1 1h3v1H1zM0 2h3v3H0zM1 5h3v1H1zM2 6h3v1H2z'),
+  sun: pixel(7, 'M3 0h1v1H3zM1 1h1v1H1zM5 1h1v1H5zM2 2h3v3H2zM0 3h1v1H0zM6 3h1v1H6zM1 5h1v1H1zM5 5h1v1H5zM3 6h1v1H3z'),
 };
 /** The mast from the icons, in the text colour, beside the name in the top bar. */
 const MAST = mosaicSvg(ANTENNA, { R: 'currentColor', C: 'currentColor', W: 'currentColor' });
@@ -60,8 +62,9 @@ function indexRow({ n, label, tag, attrs, cur = false, here = false }) {
 const MENU = [[200, 'Genres'], [300, 'Search'], [999, 'Engineering']];
 
 /** The top bar. The page number is a button: it opens the keypad for typing a page number. On a
- *  wide screen a menu follows it, with the part of the radio you're in marked. */
-export function renderHeader(page, now, { padOpen = false } = {}) {
+ *  wide screen a menu follows it, with the part of the radio you're in marked. Last comes the
+ *  dark mode key: a moon while light, a sun while dark. */
+export function renderHeader(page, now, { padOpen = false, dark = false } = {}) {
   const n = Number(page);
   const area = n >= 200 && n < 300 ? 200 : n;
   const menu = MENU.map(([p, label]) => `<button class="mi${area === p ? ' on' : ''}" data-page="${p}"`
@@ -70,7 +73,8 @@ export function renderHeader(page, now, { padOpen = false } = {}) {
     + `<button class="pg${padOpen ? ' on' : ''}" data-pad aria-label="Type a page number" aria-expanded="${padOpen}">`
     + `Page ${escapeHtml(page)}</button><nav class="menu" aria-label="Pages">${menu}</nav><span class="sp"></span>`
     + `<span class="dt">${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}</span>`
-    + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`;
+    + `<span class="clk">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span>`
+    + `<button class="tm" data-theme-toggle aria-label="Dark mode" aria-pressed="${dark}">${dark ? ICON.sun : ICON.moon}</button>`;
 }
 
 /**

@@ -1,8 +1,9 @@
 /* Radiotext: the one-bit look.
-   Black and white only: windows with striped title bars on a dithered desktop, and inverse video
-   for what's playing. A phone gets one column of windows; a wide screen (760px wide and 500px
-   tall and up, the same test as in js/main.js) gets the saved stations, the index one level up and the page side by
-   side, each list scrolling in its own window. Dark mode swaps the two colours. No motion. */
+   Black and white only: windows with striped title bars on a dithered desktop, inverse video for
+   what's playing, and a dark mode that swaps the two. A phone gets one column of windows; a wide
+   screen (760px wide and 500px tall and up, the same test as in js/main.js) gets the saved
+   stations, the index one level up and the page side by side, each list scrolling in its own
+   window. The only motion is the dither that turns the screen over between light and dark. */
 
 @font-face {
   font-family: "Pixelify Sans";
@@ -18,10 +19,20 @@
   --tap: 44px;  /* smallest tappable row */
   color-scheme: light;
 }
-/* A phone set to dark swaps the colours (the car at night). A wide screen stays white: the dither
-   on black reads as static there. */
-@media (prefers-color-scheme: dark) and (max-width: 759.98px), (prefers-color-scheme: dark) and (max-height: 499.98px) {
-  :root { --paper: #000000; --ink: #ffffff; color-scheme: dark; }
+/* Dark mode, from the moon key in the top bar: the two colours swap. Nothing else may differ,
+   because the switch is drawn by flipping the light page's pixels (js/theme.js). */
+:root[data-theme="dark"] { --paper: #000000; --ink: #ffffff; color-scheme: dark; }
+
+/* The switch: a canvas of blocks over everything, each white block flipping what's under it. */
+.dither-swap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  mix-blend-mode: difference;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -91,6 +102,17 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 #hdr .dt, #hdr .menu { display: none; }
 #hdr .mi { padding: 0 .55em; border-radius: 4px; }
 #hdr .mi.on, #hdr .mi:active { background: var(--ink); color: var(--paper); }
+#hdr .tm {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2em;
+  height: 1.45em;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+}
+#hdr .tm::after { content: ""; position: absolute; inset: -10px -6px; }
+#hdr .tm:active { background: var(--ink); color: var(--paper); }
 
 /* The page number is a key: tap it to type a page. Its tap area is bigger than it looks. */
 #hdr .pg {
@@ -296,7 +318,7 @@ kbd { font: inherit; padding: 0 .3em; border: 1px solid currentColor; border-rad
 .btn:active { background: var(--ink); color: var(--paper); }
 .btn:disabled { visibility: hidden; }
 @media (hover: hover) {
-  .btn:hover, #hdr .pg:hover, #hdr .mi:hover { background: var(--ink); color: var(--paper); }
+  .btn:hover, #hdr .pg:hover, #hdr .mi:hover, #hdr .tm:hover { background: var(--ink); color: var(--paper); }
 }
 
 /* ---- Subpages, messages, search ---- */
